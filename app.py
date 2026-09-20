@@ -3,14 +3,18 @@ import requests
 import pandas as pd
 import plotly.graph_objects as go
 from datetime import datetime
+from zoneinfo import ZoneInfo
 import warnings
 warnings.filterwarnings('ignore')
 
 # ==========================================
-# ⚙️ SEITEN-KONFIGURATION & AUTO-REFRESH
+# ⚙️ SEITEN-KONFIGURATION & ZEITZONE
 # ==========================================
 st.set_page_config(page_title="Steuerzentrale Radar", layout="wide")
 st.markdown('<meta http-equiv="refresh" content="300">', unsafe_allow_html=True)
+
+# Wir erzwingen die deutsche Zeitzone für alle Berechnungen
+MEZ = ZoneInfo("Europe/Berlin")
 
 st.title("🚀 Krypto-Steuerzentrale | Live-Radar")
 
@@ -37,9 +41,6 @@ with st.expander("❓ HILFE & ERKLÄRUNG (Hier klicken, um alle Funktionen des R
     Das System nutzt 4-Stunden-Blöcke. Der Zeitstempel am unteren Rand zeigt den *Start* des 4-Stunden-Blocks an. Der **Preis** (blaue Linie) ist der Live-Preis dieser Sekunde!
     """)
 
-# ==========================================
-# 🏆 RANGLISTE & NAMEN 
-# ==========================================
 COIN_NAMEN = {
     "XBTEUR": "Bitcoin (EUR) - Platz 1", 
     "ETHEUR": "Ethereum (EUR) - Platz 2", 
@@ -92,7 +93,7 @@ investition = st.sidebar.number_input("Geplante Kaufsumme", min_value=10, value=
 ziel_prozent = st.sidebar.number_input("Ziel-Gewinn Take-Profit (%)", min_value=1, max_value=1000, value=15, step=1)
 
 # ==========================================
-# MODUL 1: DATENBESCHAFFUNG
+# MODUL 1: DATENBESCHAFFUNG MIT ZEITSTEMPEL
 # ==========================================
 @st.cache_data(ttl=240)
 def fetch_kraken_ohlcv(pair: str, interval: int = 240):
@@ -112,28 +113,33 @@ def fetch_kraken_ohlcv(pair: str, interval: int = 240):
         df['rsi'] = 100 - (100 / (1 + gain / loss))
         df['volume_ratio'] = df['volume'] / df['volume'].rolling(20).mean()
         df['sma_200'] = df['close'].rolling(200).mean()
-        return df
+        
+        # Der exakte Zeitstempel dieses Abrufs in deutscher Zeit
+        abruf_zeit = datetime.now(MEZ).strftime('%H:%M:%S')
+        return df, abruf_zeit
     except:
         return None
 
 # ==========================================
 # MODUL 2: DASHBOARD AUFBAU (Das Cockpit)
 # ==========================================
-jetzt_string = datetime.now().strftime('%d.%m.%Y - %H:%M:%S')
-st.write(f"🔄 **Autopilot aktiv:** (Letzter Scan: {jetzt_string} Uhr)")
+jetzt_string = datetime.now(MEZ).strftime('%d.%m.%Y - %H:%M:%S')
+st.write(f"🔄 **Autopilot aktiv:** (Gesamtsystem zuletzt aktualisiert: {jetzt_string} Uhr)")
 st.markdown("---")
 
 for i, coin in enumerate(st.session_state.meine_coins):
     anzeige_name = COIN_NAMEN.get(coin, "Altcoin")
     w_symbol = "€" if "EUR" in coin else "$" if "USD" in coin else ""
     
-    # 1. Daten laden (muss jetzt zuerst passieren, damit die Werte oben stehen)
-    df_live = fetch_kraken_ohlcv(coin, interval=240)
+    daten_paket = fetch_kraken_ohlcv(coin, interval=240)
     
-    if df_live is None:
-        st.error(f"⚠️ Fehler: Keine Daten für {coin}.")
+    if daten_paket is None:
+        st.error(f"⚠️ Fehler: Keine Daten für {coin} gefunden.")
         st.markdown("---")
         continue
+
+    # Das Paket entpacken: Daten und exakter Zeitstempel
+    df_live, ping_zeit = daten_paket
 
     aktuelle_kerze = df_live.iloc[-1]
     preis = aktuelle_kerze['close']
@@ -152,17 +158,16 @@ for i, coin in enumerate(st.session_state.meine_coins):
     else: rsi_ampel = "🧊"
     dezimalstellen = 8 if preis < 0.01 else 4
 
-    # 2. DIE KOMPAKTE KOPFZEILE (Immer sichtbar)
     col_k1, col_k2, col_k3, col_k4, col_k5 = st.columns([3.5, 2, 2, 0.5, 0.5])
     
     with col_k1:
-        st.markdown(f"### {coin}\n**{anzeige_name}**")
+        st.markdown(f"### {coin}\n**{anzeige_name}**<br><span style='font-size:14px; color:#888888;'>Ping: {ping_zeit} Uhr</span>", unsafe_allow_html=True)
     with col_k2:
-        st.metric(label="Live-Kurs", value=f"{preis:.{dezimalstellen}f} {w_symbol}")
+        st.metric(label="Live-Kurs (Kraken)", value=f"{preis:.{dezimalstellen}f} {w_symbol}")
     with col_k3:
         st.metric(label=f"RSI (Puls)", value=f"{rsi:.1f} {rsi_ampel}")
     with col_k4:
-        st.markdown("<br>", unsafe_allow_html=True) # Optischer Abstandshalter
+        st.markdown("<br>", unsafe_allow_html=True) 
         if i > 0:
             if st.button("⬆️", key=f"up_{coin}"):
                 st.session_state.meine_coins[i], st.session_state.meine_coins[i-1] = st.session_state.meine_coins[i-1], st.session_state.meine_coins[i]
@@ -174,7 +179,6 @@ for i, coin in enumerate(st.session_state.meine_coins):
                 st.session_state.meine_coins[i], st.session_state.meine_coins[i+1] = st.session_state.meine_coins[i+1], st.session_state.meine_coins[i]
                 st.rerun()
 
-    # 3. DER AUSKLAPPBARE MOTORRAUM (Chart & Order-Plan)
     with st.expander(f"📊 Order-Plan & Chart für {coin} öffnen"):
         col_d1, col_d2 = st.columns([1, 1.5])
         
