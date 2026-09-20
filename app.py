@@ -18,16 +18,23 @@ st.markdown('<meta http-equiv="refresh" content="300">', unsafe_allow_html=True)
 # ==========================================
 st.sidebar.header("⚙️ system-einstellungen")
 
-# 1. Börsen-Auswahl nach ganz oben mit Schutz-Hinweis
+# 1. Börsen-Auswahl
 st.sidebar.selectbox("🏛️ krypto-börse (api):", ["kraken", "binance (in vorbereitung)", "coinbase (in vorbereitung)"])
 st.sidebar.caption("⚠️ kann nur geändert werden, wenn die api-schnittstelle aktiv ist.")
 
 st.sidebar.markdown("---")
 
-# 2. Lokale Zeitzone
-zeitzonen_liste = ["europe/berlin (mez)", "europe/london (gmt)", "europe/zurich (cet)", "america/new_york (est)", "asia/tokyo (jst)", "utc"]
-gewaehlte_zeitzone_str = st.sidebar.selectbox("🌍 lokale zeitzone:", zeitzonen_liste)
-aktuelle_zeitzone = ZoneInfo(gewaehlte_zeitzone_str.split(" ")[0])
+# 2. Lokale Zeitzone (Mit exakten Programmier-Namen, damit kein Fehler mehr auftritt)
+zeitzonen_optionen = {
+    "deutschland (berlin / mez)": "Europe/Berlin",
+    "england (london / gmt)": "Europe/London",
+    "schweiz (zürich / cet)": "Europe/Zurich",
+    "usa (new york / est)": "America/New_York",
+    "japan (tokyo / jst)": "Asia/Tokyo",
+    "weltzeit (utc)": "UTC"
+}
+gewaehlte_tz_label = st.sidebar.selectbox("🌍 lokale zeitzone:", list(zeitzonen_optionen.keys()))
+aktuelle_zeitzone = ZoneInfo(zeitzonen_optionen[gewaehlte_tz_label])
 
 # 3. Fiat-Währung
 FIAT_SYMBOLE = {
@@ -144,7 +151,6 @@ for i, basis_coin in enumerate(st.session_state.meine_basis_coins):
     daten_paket = fetch_kraken_ohlcv(voller_coin_name, interval=240)
     
     if daten_paket is None:
-        # Hier wird jetzt der volle Name in der Fehlermeldung ausgegeben
         st.error(f"⚠️ handelspaar **{voller_coin_name} ({anzeige_name})** wird auf dieser börse aktuell nicht angeboten.")
         st.markdown("---")
         continue
