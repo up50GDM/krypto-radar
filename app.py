@@ -14,9 +14,37 @@ st.set_page_config(page_title="steuerzentrale radar", layout="wide")
 st.markdown('<meta http-equiv="refresh" content="300">', unsafe_allow_html=True)
 
 # ==========================================
-# 🎛️ EINSTELLUNGEN (Globale Parameter)
+# 💾 DAUERHAFTES GEDÄCHTNIS (Alle Werte einfrieren)
+# ==========================================
+if 'investition' not in st.session_state:
+    st.session_state.investition = 500
+
+if 'ziel_prozent' not in st.session_state:
+    st.session_state.ziel_prozent = 15
+
+if 'meine_basis_coins' not in st.session_state:
+    st.session_state.meine_basis_coins = ["XBT", "ETH", "SOL", "PEPE", "SUI", "FET"]
+
+if 'gewaehlte_tz_idx' not in st.session_state:
+    st.session_state.gewaehlte_tz_idx = 0
+
+if 'fiat_wahl' not in st.session_state:
+    st.session_state.fiat_wahl = "EUR"
+
+# ==========================================
+# 🎛️ EINSTELLUNGEN (Mit Reset-Funktion)
 # ==========================================
 st.sidebar.header("⚙️ system-einstellungen")
+
+if st.sidebar.button("🔄 auf werkseinstellungen zurücksetzen"):
+    st.session_state.investition = 500
+    st.session_state.ziel_prozent = 15
+    st.session_state.meine_basis_coins = ["XBT", "ETH", "SOL", "PEPE", "SUI", "FET"]
+    st.session_state.gewaehlte_tz_idx = 0
+    st.session_state.fiat_wahl = "EUR"
+    st.rerun()
+
+st.sidebar.markdown("---")
 
 st.sidebar.selectbox("🏛️ krypto-börse (api):", ["kraken", "binance (in vorbereitung)", "coinbase (in vorbereitung)"])
 st.sidebar.caption("⚠️ kann nur geändert werden, wenn die api-schnittstelle aktiv ist.")
@@ -31,13 +59,28 @@ zeitzonen_optionen = {
     "japan (tokyo / jst)": "Asia/Tokyo",
     "weltzeit (utc)": "UTC"
 }
-gewaehlte_tz_label = st.sidebar.selectbox("🌍 lokale zeitzone:", list(zeitzonen_optionen.keys()))
+
+tz_keys = list(zeitzonen_optionen.keys())
+gewaehlte_tz_label = st.sidebar.selectbox(
+    "🌍 lokale zeitzone:", 
+    tz_keys, 
+    index=st.session_state.gewaehlte_tz_idx,
+    key="select_tz"
+)
+st.session_state.gewaehlte_tz_idx = tz_keys.index(gewaehlte_tz_label)
 aktuelle_zeitzone = ZoneInfo(zeitzonen_optionen[gewaehlte_tz_label])
 
 FIAT_SYMBOLE = {
     "EUR": "€", "USD": "$", "GBP": "£", "CHF": "chf", "CAD": "ca$", "AUD": "au$", "JPY": "¥"
 }
-basis_waehrung = st.sidebar.selectbox("💵 bevorzugte fiat-währung:", list(FIAT_SYMBOLE.keys()))
+fiat_keys = list(FIAT_SYMBOLE.keys())
+basis_waehrung = st.sidebar.selectbox(
+    "💵 bevorzugte fiat-währung:", 
+    fiat_keys, 
+    index=fiat_keys.index(st.session_state.fiat_wahl),
+    key="select_fiat"
+)
+st.session_state.fiat_wahl = basis_waehrung
 
 st.sidebar.markdown("---")
 st.sidebar.header("🎛️ deine watchlist")
@@ -80,9 +123,6 @@ COIN_BASIS = {
     "ARB": "arbitrum - platz 42"
 }
 
-if 'meine_basis_coins' not in st.session_state:
-    st.session_state.meine_basis_coins = ["XBT", "ETH", "SOL", "PEPE", "SUI", "FET"]
-
 alle_basis_coins = list(COIN_BASIS.keys())
 
 def format_basis_label(basis_code):
@@ -92,7 +132,8 @@ auswahl = st.sidebar.multiselect(
     "währungen suchen (tippen/scrollen):", 
     options=alle_basis_coins, 
     default=st.session_state.meine_basis_coins,
-    format_func=format_basis_label
+    format_func=format_basis_label,
+    key="multiselect_coins"
 )
 
 neue_liste = [c for c in st.session_state.meine_basis_coins if c in auswahl]
@@ -102,8 +143,25 @@ st.session_state.meine_basis_coins = neue_liste
 
 st.sidebar.markdown("---")
 st.sidebar.subheader("💰 order-rechner")
-investition = st.sidebar.number_input("geplante kaufsumme", min_value=10, value=500, step=50)
-ziel_prozent = st.sidebar.number_input("ziel-gewinn take-profit (%)", min_value=1, max_value=1000, value=15, step=1)
+
+investition = st.sidebar.number_input(
+    "geplante kaufsumme", 
+    min_value=10, 
+    value=st.session_state.investition, 
+    step=50,
+    key="input_invest"
+)
+st.session_state.investition = investition
+
+ziel_prozent = st.sidebar.number_input(
+    "ziel-gewinn take-profit (%)", 
+    min_value=1, 
+    max_value=1000, 
+    value=st.session_state.ziel_prozent, 
+    step=1,
+    key="input_ziel"
+)
+st.session_state.ziel_prozent = ziel_prozent
 
 # ==========================================
 # MODUL 1: DATENBESCHAFFUNG 
@@ -196,16 +254,16 @@ for i, basis_coin in enumerate(st.session_state.meine_basis_coins):
         
         with col_d1:
             st.info(f"**signal: {status}**")
-            st.markdown(f"**order-plan für {investition} {w_symbol}:**")
-            coins_gekauft = investition / preis
+            st.markdown(f"**order-plan für {st.session_state.investition} {w_symbol}:**")
+            coins_gekauft = st.session_state.investition / preis
             limit_3_pct_preis = preis * 0.97
-            verlust = investition - (coins_gekauft * limit_3_pct_preis)
-            ziel_preis = preis * (1 + (ziel_prozent / 100))
-            gewinn = (coins_gekauft * ziel_preis) - investition
+            verlust = st.session_state.investition - (coins_gekauft * limit_3_pct_preis)
+            ziel_preis = preis * (1 + (st.session_state.ziel_prozent / 100))
+            gewinn = (coins_gekauft * ziel_preis) - st.session_state.investition
             
             st.markdown(f"- 🪙 **menge:** {coins_gekauft:,.2f} stück")
             st.markdown(f"- 🛑 **stop (-3%):** limit bei **{limit_3_pct_preis:.{dezimalstellen}f} {w_symbol}** (-{verlust:.2f} {w_symbol})")
-            st.markdown(f"- 🎯 **ziel (+{ziel_prozent}%):** limit bei **{ziel_preis:.{dezimalstellen}f} {w_symbol}** (+{gewinn:.2f} {w_symbol})")
+            st.markdown(f"- 🎯 **ziel (+{st.session_state.ziel_prozent}%):** limit bei **{ziel_preis:.{dezimalstellen}f} {w_symbol}** (+{gewinn:.2f} {w_symbol})")
 
         with col_d2:
             fig = go.Figure()
