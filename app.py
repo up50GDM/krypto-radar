@@ -60,7 +60,11 @@ def fetch_kraken_assets():
 ALLE_COINS_DICT = fetch_kraken_assets()
 
 if 'meine_basis_coins' not in st.session_state: 
+    # Saubere Startliste
     st.session_state.meine_basis_coins = ["SOL", "PEPE", "SUI", "FET", "ADA"]
+
+# Sicherheitsschritt: Duplikate entfernen (falls der Speicher korrumpiert war)
+st.session_state.meine_basis_coins = list(dict.fromkeys(st.session_state.meine_basis_coins))
 
 def get_clean_name(api_key):
     raw_name = ALLE_COINS_DICT.get(api_key, api_key)
@@ -137,7 +141,7 @@ st.session_state.fiat_wahl = basis_waehrung
 w_symbol = FIAT_SYMBOLE.get(basis_waehrung, basis_waehrung)
 
 st.sidebar.markdown("---")
-st.sidebar.header("🎛️ deine watchlist (Alle Coins!)")
+st.sidebar.header("🎛️ deine watchlist")
 
 auswahl = st.sidebar.multiselect(
     "währungen suchen/hinzufügen:", 
@@ -177,7 +181,7 @@ st.title("🚀 krypto-steuerzentrale | live-radar")
 ticker_text = fetch_global_ticker(st.session_state.fiat_wahl)
 st.markdown(f"<marquee style='font-size: 15px; font-weight: bold; color: #d4d4d4; background-color: #1e1e1e; padding: 6px; border-radius: 5px; border: 1px solid #333;'>{ticker_text}</marquee>", unsafe_allow_html=True)
 
-with st.expander("🌍 weltuhren & börsen-öffnungszeiten (Wann kommt das große Geld?)"):
+with st.expander("🌍 weltuhren & börsen-öffnungszeiten"):
     col_u1, col_u2, col_u3, col_u4 = st.columns(4)
     col_u1.metric("🗽 New York (Wall Street)", f"{datetime.now(ZoneInfo('America/New_York')).strftime('%H:%M')} Uhr")
     col_u2.metric("🎡 London (LSE)", f"{datetime.now(ZoneInfo('Europe/London')).strftime('%H:%M')} Uhr")
@@ -199,7 +203,7 @@ with col_m2:
 # ==========================================
 @st.fragment(run_every=300)
 def live_radar_cockpit():
-    st.write(f"🔄 **autopilot aktiv:** (radar zuletzt lautlos aktualisiert: {datetime.now(aktuelle_zeitzone).strftime('%H:%M:%S')})")
+    st.write(f"🔄 **autopilot aktiv:** (zuletzt aktualisiert: {datetime.now(aktuelle_zeitzone).strftime('%H:%M:%S')})")
     st.markdown("---")
 
     for i, basis_coin in enumerate(st.session_state.meine_basis_coins):
@@ -263,13 +267,13 @@ def live_radar_cockpit():
         with col_k3:
             st.metric(label=f"rsi (puls)", value=f"{rsi:.1f} {rsi_ampel}")
         
-        # DER NEUE TELEPORT-BLOCK (Alle Funktionen ergonomisch vereint)
+        # NAVIGATION: Stabil und fehlerfrei ohne Dropdown
         with col_k4:
             st.markdown("<br>", unsafe_allow_html=True)
-            nav_col1, nav_col2, nav_col3, nav_col4 = st.columns([1, 1, 1, 2])
+            nav_col1, nav_col2, nav_col3 = st.columns([1, 1, 1])
             
             with nav_col1:
-                if i > 0 and st.button("🔝", key=f"top_{basis_coin}", help="Sofort auf Platz 1 teleportieren"):
+                if i > 0 and st.button("🔝", key=f"top_{basis_coin}", help="Sofort auf Platz 1 setzen"):
                     st.session_state.meine_basis_coins.remove(basis_coin)
                     st.session_state.meine_basis_coins.insert(0, basis_coin)
                     st.rerun()
@@ -280,19 +284,6 @@ def live_radar_cockpit():
             with nav_col3:
                 if i < len(st.session_state.meine_basis_coins) - 1 and st.button("⬇️", key=f"down_{basis_coin}"):
                     st.session_state.meine_basis_coins[i], st.session_state.meine_basis_coins[i+1] = st.session_state.meine_basis_coins[i+1], st.session_state.meine_basis_coins[i]
-                    st.rerun()
-            with nav_col4:
-                neu_platz = st.selectbox(
-                    "Platz", 
-                    options=range(1, len(st.session_state.meine_basis_coins) + 1), 
-                    index=i, 
-                    key=f"sel_pos_{basis_coin}", 
-                    label_visibility="collapsed",
-                    help="Exakten Platz wählen"
-                )
-                if (neu_platz - 1) != i:
-                    st.session_state.meine_basis_coins.remove(basis_coin)
-                    st.session_state.meine_basis_coins.insert(neu_platz - 1, basis_coin)
                     st.rerun()
 
         if f"chk_{basis_coin}" not in st.session_state: st.session_state[f"chk_{basis_coin}"] = False
