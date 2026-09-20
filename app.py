@@ -5,42 +5,58 @@ import plotly.graph_objects as go
 from datetime import datetime
 
 # ==========================================
-# ⚙️ SEITEN-KONFIGURATION
+# ⚙️ SEITEN-KONFIGURATION & AUTO-REFRESH
 # ==========================================
 st.set_page_config(page_title="Steuerzentrale Radar", layout="wide")
-st.title("🚀 Krypto-Steuerzentrale | Live-Radar")
+
+# Unsichtbarer Herzschlag: Die Seite lädt sich alle 5 Minuten (300 Sekunden) automatisch neu
+st.markdown('<meta http-equiv="refresh" content="300">', unsafe_allow_html=True)
 
 # ==========================================
-# ❓ ZENTRALES INHALTSVERZEICHNIS & HILFE
+# 🔒 SICHERHEITS-SCHLEUSE (Passwort-Schutz)
 # ==========================================
+if 'authentifiziert' not in st.session_state:
+    st.session_state.authentifiziert = False
+
+if not st.session_state.authentifiziert:
+    st.title("🔒 System gesperrt")
+    st.markdown("Diese Steuerzentrale ist privat. Bitte authentifizieren.")
+    passwort = st.text_input("Sicherheitsschlüssel:", type="password")
+    
+    # HIER kannst du dein Passwort ändern (aktuell: Radar2026)
+    if passwort == "Radar2026": 
+        st.session_state.authentifiziert = True
+        st.rerun()
+    elif passwort != "":
+        st.error("Zugriff verweigert.")
+    st.stop() # Stoppt hier, bis das Passwort stimmt
+
+# ==========================================
+# 🚀 HAUPT-APP (Wird nur nach Login geladen)
+# ==========================================
+st.title("🚀 Krypto-Steuerzentrale | Live-Radar")
+
 with st.expander("❓ HILFE & ERKLÄRUNG (Hier klicken, um alle Funktionen des Radars zu verstehen)"):
     st.markdown("""
     ### 🧭 System-Handbuch: So liest du das Radar
-    Dieses Dashboard ist ein rationales Messinstrument. Es trifft keine Entscheidungen aus dem Bauch heraus, sondern filtert Marktrauschen durch nackte Mathematik.
+    Dieses Dashboard ist ein rationales Messinstrument. Es filtert Marktrauschen durch nackte Mathematik.
 
-    #### 1. Die Messgeräte (Was bedeuten die Zahlen?)
-    *   **Aktueller Kurs:** Der echte Live-Preis direkt von der Krypto-Börse Kraken.
-    *   **RSI (Der Puls des Marktes):** Zeigt als Zahl zwischen 0 und 100, ob ein Markt gesund atmet oder heißläuft.
-        *   🟢 **45 bis 65:** Gesunde Zone (Perfekte Vorbereitung für Einstiege).
-        *   🟡 **65 bis 75:** Warnzone (Der Markt wird heißer).
-        *   🔴 **Ab 75:** Gefahr! (Der Markt wird von Gier getrieben, ein Absturz ist hochwahrscheinlich).
-        *   🧊 **Unter 45:** Zu kalt (Panik-Abverkauf läuft).
-    *   **SMA 200 (Die rote Linie im Chart):** Der Durchschnittspreis der letzten 200 Zeitabschnitte. Das ist die härteste Grenze des Systems. Sie trennt Aufwärts- von Abwärtstrends.
+    #### 1. Die Messgeräte
+    *   **Aktueller Kurs:** Der echte Live-Preis direkt von Kraken.
+    *   **RSI (Der Puls):** 
+        *   🟢 **45 bis 65:** Gesunde Zone (Perfekt für Einstiege).
+        *   🟡 **65 bis 75:** Warnzone (Der Markt wird heiß).
+        *   🔴 **Ab 75:** Gefahr! (Überhitzung, Absturz wahrscheinlich).
+    *   **SMA 200 (Rote Linie):** Die harte Grenze zwischen Aufwärts- und Abwärtstrend.
 
-    #### 2. Die Radar-Signale (Was ist zu tun?)
-    *   🟢 **NEUTRAL (Abwarten - Finger weg):** Der Markt ist ziellos. Hände stillhalten schützt dein Kapital.
-    *   🔥 **KAUF-ZONE (Einstieg prüfen):** Der Kurs liegt über der roten Linie, das Volumen explodiert und der Puls (RSI) ist kühl. Die Mathematik gibt grünes Licht.
-    *   ⚠️ **VERKAUF (Markt überhitzt):** Der Puls ist im roten Bereich (RSI > 75). Zeit, in der Steuerzentrale über eine Gewinnsicherung nachzudenken.
-    *   🩸 **VERKAUF (Trendbruch):** Lebensgefahr. Der Kurs ist unter die rote Trend-Linie gestürzt. Die Reißleine muss gezogen werden.
+    #### 2. Die Radar-Signale
+    *   🟢 **NEUTRAL:** Der Markt ist ziellos. Finger weg!
+    *   🔥 **KAUF-ZONE:** Kurs über roter Linie, Volumen hoch, RSI kühl. Einstieg prüfen.
+    *   ⚠️ **VERKAUF (Überhitzt):** RSI über 75. Gewinnsicherung prüfen.
+    *   🩸 **VERKAUF (Trendbruch):** Kurs stürzt unter rote Linie. Reißleine ziehen!
 
-    #### 3. Der Order-Plan (Rechner)
-    Das System rechnet dir live aus, wo du deine Absicherungen bei Kraken eintragen musst, basierend auf deiner eingestellten Kaufsumme.
-    *   🛑 **Notbremse (-3%):** Dein eiserner Stop-Loss. Fällt der Kurs um 3%, rettet dich dieses Limit vor einem Totalabsturz.
-    *   🎯 **Ziel (+X%):** Dein Take-Profit. Der Punkt, an dem du rational und ohne Emotionen deinen Gewinn mitnimmst.
-
-    #### 4. Die Bedienung
-    *   **Sortieren:** Klicke einfach auf **⬆️ Hoch** oder **⬇️ Runter** neben einem Währungsnamen, um deine Prioritäten-Liste anzupassen.
-    *   **Einblenden/Ausblenden:** Nutze das Auswahlfeld ganz links in der Leiste, um neue Währungen zu aktivieren oder zu entfernen.
+    #### 3. Der Chart (Warum die Zeit manchmal in der Vergangenheit liegt)
+    Das System nutzt massive 4-Stunden-Blöcke, um kleine Störsignale herauszufiltern. Der Zeitstempel im Diagramm zeigt immer den *Start* des aktuellen 4-Stunden-Blocks an (z.B. 08:00 Uhr). Der **Preis** am Ende der Linie ist jedoch exakt der Live-Preis dieser Sekunde!
     """)
 
 COIN_NAMEN = {
@@ -48,7 +64,6 @@ COIN_NAMEN = {
     "PEPEEUR": "Pepe", "SUIEUR": "Sui", "FETEUR": "Fetch.ai", "ARBEUR": "Arbitrum"
 }
 
-# Gedächtnis für deine Sortierung
 if 'meine_coins' not in st.session_state:
     st.session_state.meine_coins = ["XBTEUR", "ETHEUR", "SOLEUR", "PEPEEUR", "SUIEUR", "FETEUR", "ARBEUR"]
 
@@ -58,12 +73,7 @@ if 'meine_coins' not in st.session_state:
 st.sidebar.header("🎛️ Deine Einstellungen")
 
 alle_kraken_coins = ["XBTEUR", "ETHEUR", "SOLEUR", "PEPEEUR", "SUIEUR", "FETEUR", "ARBEUR", "ADAEUR", "DOGEEUR", "DOTEUR", "LINKEUR"]
-
-auswahl = st.sidebar.multiselect(
-    "Währungen an/aus (Sortierung machst du rechts!):", 
-    options=alle_kraken_coins, 
-    default=st.session_state.meine_coins
-)
+auswahl = st.sidebar.multiselect("Währungen an/aus:", options=alle_kraken_coins, default=st.session_state.meine_coins)
 
 neue_liste = [c for c in st.session_state.meine_coins if c in auswahl]
 for c in auswahl:
@@ -79,7 +89,7 @@ ziel_prozent = st.sidebar.slider("Ziel-Gewinn Take-Profit (%)", min_value=1, max
 # ==========================================
 # MODUL 1: DATENBESCHAFFUNG
 # ==========================================
-@st.cache_data(ttl=300)
+@st.cache_data(ttl=240) # Daten-Cache auf 4 Minuten gestellt
 def fetch_kraken_ohlcv(pair: str, interval: int = 240):
     url = "https://api.kraken.com/0/public/OHLC"
     try:
@@ -104,7 +114,8 @@ def fetch_kraken_ohlcv(pair: str, interval: int = 240):
 # ==========================================
 # MODUL 2: DASHBOARD AUFBAU
 # ==========================================
-st.write(f"Letztes Update: {datetime.now().strftime('%d.%m.%Y - %H:%M:%S')} (Daten laden alle 5 Min. neu)")
+jetzt_string = datetime.now().strftime('%d.%m.%Y - %H:%M:%S')
+st.write(f"🔄 **Autopilot aktiv:** Die Seite aktualisiert sich automatisch alle 5 Minuten. (Letzter Scan: {jetzt_string} Uhr)")
 st.markdown("---")
 
 for i, coin in enumerate(st.session_state.meine_coins):
@@ -152,9 +163,10 @@ for i, coin in enumerate(st.session_state.meine_coins):
     col1, col2, col3 = st.columns([1, 1.5, 2])
     
     with col1:
-        st.metric(label="Aktueller Kurs", value=f"{preis:.{dezimalstellen}f} €")
+        st.metric(label="Live-Kurs auf Kraken", value=f"{preis:.{dezimalstellen}f} €")
         st.metric(label=f"RSI (Puls) {rsi_ampel}", value=f"{rsi:.1f}")
         st.info(f"**{status}**")
+        st.caption(f"⚡ Live abgerechnet um: {datetime.now().strftime('%H:%M')} Uhr")
         
     with col2:
         st.markdown(f"**Order-Plan für {investition} €:**")
@@ -174,20 +186,25 @@ for i, coin in enumerate(st.session_state.meine_coins):
         fig.add_trace(go.Scatter(
             x=df_live['timestamp'], y=df_live['close'], 
             mode='lines', line=dict(color='#4da6ff', width=2), name='Kurs',
-            hovertemplate='<b>Kurs:</b> %{y:.4f} €<br><b>Zeit:</b> %{x|%d.%m.%Y - %H:%M} Uhr<extra></extra>'
+            hovertemplate='<b>Kurs:</b> %{y:.4f} €<br><b>Block-Start:</b> %{x|%d.%m. - %H:%M} Uhr<extra></extra>'
         ))
         
         fig.add_trace(go.Scatter(
             x=df_live['timestamp'], y=df_live['sma_200'], 
             mode='lines', line=dict(color='#ff4d4d', width=2, dash='dash'), name='SMA 200 (Trend)',
-            hovertemplate='<b>Trend-Grenze:</b> %{y:.4f} €<br><b>Zeit:</b> %{x|%d.%m.%Y - %H:%M} Uhr<extra></extra>'
+            hovertemplate='<b>Trend-Grenze:</b> %{y:.4f} €<br><b>Block-Start:</b> %{x|%d.%m. - %H:%M} Uhr<extra></extra>'
         ))
+        
+        # Berechnung für den optischen Freiraum nach rechts (ca. 48 Stunden in die Zukunft)
+        letzter_zeitpunkt = df_live['timestamp'].iloc[-1]
+        zukunft = letzter_zeitpunkt + pd.Timedelta(hours=48)
+        start_ansicht = df_live['timestamp'].iloc[-100] # Zeigt die letzten 100 Kerzen für perfekten Zoom
         
         fig.update_layout(
             margin=dict(l=0, r=0, t=10, b=0),
             plot_bgcolor='rgba(0,0,0,0)',
             paper_bgcolor='rgba(0,0,0,0)',
-            xaxis=dict(tickformat="%d.%m.", tickfont=dict(size=10, color='gray'), showgrid=False),
+            xaxis=dict(range=[start_ansicht, zukunft], tickformat="%d.%m.", tickfont=dict(size=10, color='gray'), showgrid=False),
             yaxis=dict(tickfont=dict(size=10, color='gray'), showgrid=True, gridcolor='#333333'),
             showlegend=False,
             height=200,
