@@ -18,16 +18,14 @@ st.markdown('<meta http-equiv="refresh" content="300">', unsafe_allow_html=True)
 # ==========================================
 st.sidebar.header("⚙️ System-Einstellungen")
 
-# 1. Zeitzonen-Auswahl (Verändert sofort alle Zeiten im Code)
 zeitzonen_liste = ["Europe/Berlin (MEZ)", "Europe/London (GMT)", "America/New_York (EST)", "Asia/Tokyo (JST)", "UTC"]
 gewaehlte_zeitzone_str = st.sidebar.selectbox("🌍 Lokale Zeitzone:", zeitzonen_liste)
 aktuelle_zeitzone = ZoneInfo(gewaehlte_zeitzone_str.split(" ")[0])
 
-# 2. Börsen-Auswahl (Architektur vorbereitet für Skalierung)
 st.sidebar.selectbox("🏛️ Krypto-Börse (API):", ["Kraken", "Binance (In Vorbereitung)", "Coinbase (In Vorbereitung)"])
 
-# 3. Basis-Währung (Filtert die Auswahl-Listen später)
-basis_waehrung = st.sidebar.radio("💵 Bevorzugte Basis-Währung:", ["EUR (€)", "USD ($)"], horizontal=True)
+# Der funktionale Währungs-Schalter
+basis_waehrung = st.sidebar.radio("💵 Bevorzugte Basis-Währung:", ["EUR", "USD"], horizontal=True)
 
 st.sidebar.markdown("---")
 st.sidebar.header("🎛️ Deine Watchlist")
@@ -52,48 +50,44 @@ with st.expander("❓ HILFE & ERKLÄRUNG (Hier klicken, um alle Funktionen des R
     *   🔥 **KAUF-ZONE:** Kurs über roter Linie, Volumen hoch, RSI kühl. Einstieg prüfen.
     *   ⚠️ **VERKAUF (Überhitzt):** RSI über 75. Gewinnsicherung prüfen.
     *   🩸 **VERKAUF (Trendbruch):** Kurs stürzt unter rote Linie. Reißleine ziehen!
-
-    #### 3. Der Chart
-    Das System nutzt 4-Stunden-Blöcke. Der Zeitstempel am unteren Rand zeigt den *Start* des 4-Stunden-Blocks an. Der **Preis** (blaue Linie) ist der Live-Preis dieser Sekunde!
     """)
 
-COIN_NAMEN = {
-    "XBTEUR": "Bitcoin (EUR) - Platz 1", 
-    "ETHEUR": "Ethereum (EUR) - Platz 2", 
-    "SOLEUR": "Solana (EUR) - Platz 5", 
-    "ADAEUR": "Cardano (EUR) - Platz 10", 
-    "DOTEUR": "Polkadot (EUR) - Platz 15", 
-    "LINKEUR": "Chainlink (EUR) - Platz 16",
-    "BCHEUR": "Bitcoin Cash (EUR) - Platz 17",
-    "LTCEUR": "Litecoin (EUR) - Platz 21",
-    "PEPEEUR": "Pepe (EUR) - Platz 24", 
-    "SUIEUR": "Sui (EUR) - Platz 28", 
-    "FETEUR": "Fetch.ai (EUR) - Platz 33", 
-    "XMREUR": "Monero (EUR) - Platz 35",
-    "ARBEUR": "Arbitrum (EUR) - Platz 42", 
-    
-    "XBTUSD": "Bitcoin (USD) - Platz 1", 
-    "ETHUSD": "Ethereum (USD) - Platz 2", 
-    "SOLUSD": "Solana (USD) - Platz 5"
+# Basis-Lexikon (Wir speichern nur die Kürzel ohne Endung)
+COIN_BASIS = {
+    "XBT": "Bitcoin - Platz 1", 
+    "ETH": "Ethereum - Platz 2", 
+    "SOL": "Solana - Platz 5", 
+    "ADA": "Cardano - Platz 10", 
+    "DOT": "Polkadot - Platz 15", 
+    "LINK": "Chainlink - Platz 16",
+    "BCH": "Bitcoin Cash - Platz 17",
+    "LTC": "Litecoin - Platz 21",
+    "PEPE": "Pepe - Platz 24", 
+    "SUI": "Sui - Platz 28", 
+    "FET": "Fetch.ai - Platz 33", 
+    "XMR": "Monero - Platz 35",
+    "ARB": "Arbitrum - Platz 42"
 }
 
-if 'meine_coins' not in st.session_state:
-    st.session_state.meine_coins = ["XBTEUR", "ETHEUR", "SOLEUR", "PEPEEUR", "SUIEUR", "FETEUR"]
+if 'meine_basis_coins' not in st.session_state:
+    st.session_state.meine_basis_coins = ["XBT", "ETH", "SOL", "PEPE", "SUI", "FET"]
 
-alle_kraken_coins = list(COIN_NAMEN.keys())
-def format_coin_label(coin_code): return f"{coin_code} ➔ {COIN_NAMEN.get(coin_code, coin_code)}"
+alle_basis_coins = list(COIN_BASIS.keys())
+
+def format_basis_label(basis_code):
+    return f"{basis_code} ➔ {COIN_BASIS.get(basis_code, basis_code)}"
 
 auswahl = st.sidebar.multiselect(
     "Währungen suchen (Tippen/Scrollen):", 
-    options=alle_kraken_coins, 
-    default=st.session_state.meine_coins,
-    format_func=format_coin_label
+    options=alle_basis_coins, 
+    default=st.session_state.meine_basis_coins,
+    format_func=format_basis_label
 )
 
-neue_liste = [c for c in st.session_state.meine_coins if c in auswahl]
+neue_liste = [c for c in st.session_state.meine_basis_coins if c in auswahl]
 for c in auswahl:
     if c not in neue_liste: neue_liste.append(c)
-st.session_state.meine_coins = neue_liste
+st.session_state.meine_basis_coins = neue_liste
 
 st.sidebar.markdown("---")
 st.sidebar.subheader("💰 Order-Rechner")
@@ -122,7 +116,6 @@ def fetch_kraken_ohlcv(pair: str, interval: int = 240):
         df['volume_ratio'] = df['volume'] / df['volume'].rolling(20).mean()
         df['sma_200'] = df['close'].rolling(200).mean()
         
-        # Zeitstempel mit der ausgewählten Zeitzone stempeln
         abruf_zeit = datetime.now(aktuelle_zeitzone).strftime('%H:%M:%S')
         return df, abruf_zeit
     except:
@@ -135,14 +128,18 @@ jetzt_string = datetime.now(aktuelle_zeitzone).strftime('%d.%m.%Y - %H:%M:%S')
 st.write(f"🔄 **Autopilot aktiv:** (Gesamtsystem zuletzt aktualisiert: {jetzt_string})")
 st.markdown("---")
 
-for i, coin in enumerate(st.session_state.meine_coins):
-    anzeige_name = COIN_NAMEN.get(coin, "Altcoin")
-    w_symbol = "€" if "EUR" in coin else "$" if "USD" in coin else ""
+w_symbol = "€" if basis_waehrung == "EUR" else "$"
+
+for i, basis_coin in enumerate(st.session_state.meine_basis_coins):
+    anzeige_name = COIN_BASIS.get(basis_coin, "Altcoin")
     
-    daten_paket = fetch_kraken_ohlcv(coin, interval=240)
+    # Der entscheidende Moment: Hier wird die Währung (EUR/USD) dynamisch drangeklebt
+    voller_coin_name = f"{basis_coin}{basis_waehrung}"
+    
+    daten_paket = fetch_kraken_ohlcv(voller_coin_name, interval=240)
     
     if daten_paket is None:
-        st.error(f"⚠️ Fehler: Keine Daten für {coin} gefunden.")
+        st.error(f"⚠️ Fehler: Keine Daten auf Kraken für {voller_coin_name} gefunden.")
         st.markdown("---")
         continue
 
@@ -167,7 +164,7 @@ for i, coin in enumerate(st.session_state.meine_coins):
     col_k1, col_k2, col_k3, col_k4, col_k5 = st.columns([3.5, 2, 2, 0.5, 0.5])
     
     with col_k1:
-        st.markdown(f"### {coin}\n**{anzeige_name}**<br><span style='font-size:14px; color:#888888;'>Ping: {ping_zeit}</span>", unsafe_allow_html=True)
+        st.markdown(f"### {voller_coin_name}\n**{anzeige_name}**<br><span style='font-size:14px; color:#888888;'>Ping: {ping_zeit}</span>", unsafe_allow_html=True)
     with col_k2:
         st.metric(label="Live-Kurs (Börse)", value=f"{preis:.{dezimalstellen}f} {w_symbol}")
     with col_k3:
@@ -175,17 +172,17 @@ for i, coin in enumerate(st.session_state.meine_coins):
     with col_k4:
         st.markdown("<br>", unsafe_allow_html=True) 
         if i > 0:
-            if st.button("⬆️", key=f"up_{coin}"):
-                st.session_state.meine_coins[i], st.session_state.meine_coins[i-1] = st.session_state.meine_coins[i-1], st.session_state.meine_coins[i]
+            if st.button("⬆️", key=f"up_{basis_coin}"):
+                st.session_state.meine_basis_coins[i], st.session_state.meine_basis_coins[i-1] = st.session_state.meine_basis_coins[i-1], st.session_state.meine_basis_coins[i]
                 st.rerun()
     with col_k5:
         st.markdown("<br>", unsafe_allow_html=True)
-        if i < len(st.session_state.meine_coins) - 1:
-            if st.button("⬇️", key=f"down_{coin}"):
-                st.session_state.meine_coins[i], st.session_state.meine_coins[i+1] = st.session_state.meine_coins[i+1], st.session_state.meine_coins[i]
+        if i < len(st.session_state.meine_basis_coins) - 1:
+            if st.button("⬇️", key=f"down_{basis_coin}"):
+                st.session_state.meine_basis_coins[i], st.session_state.meine_basis_coins[i+1] = st.session_state.meine_basis_coins[i+1], st.session_state.meine_basis_coins[i]
                 st.rerun()
 
-    with st.expander(f"📊 Order-Plan & Chart für {coin} öffnen"):
+    with st.expander(f"📊 Order-Plan & Chart für {voller_coin_name} öffnen"):
         col_d1, col_d2 = st.columns([1, 1.5])
         
         with col_d1:
