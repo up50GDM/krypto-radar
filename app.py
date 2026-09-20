@@ -10,65 +10,32 @@ warnings.filterwarnings('ignore')
 # ==========================================
 # ⚙️ SEITEN-KONFIGURATION
 # ==========================================
-st.set_page_config(page_title="Steuerzentrale Radar", layout="wide")
+st.set_page_config(page_title="steuerzentrale radar", layout="wide")
 
 # ==========================================
 # 💾 FELSENFESTES GEDÄCHTNIS (Session State)
 # ==========================================
-if 'investition' not in st.session_state:
-    st.session_state.investition = 500
-if 'ziel_prozent' not in st.session_state:
-    st.session_state.ziel_prozent = 15
-if 'meine_basis_coins' not in st.session_state:
-    st.session_state.meine_basis_coins = ["XBT", "ETH", "SOL", "PEPE"]
-if 'fiat_wahl' not in st.session_state:
-    st.session_state.fiat_wahl = "EUR"
-if 'tz_wahl' not in st.session_state:
-    st.session_state.tz_wahl = "deutschland (berlin / mez)"
-if 'alle_aufklappen' not in st.session_state:
-    st.session_state.alle_aufklappen = False
-if 'calc_input' not in st.session_state:
-    st.session_state.calc_input = ""
-if 'calc_result' not in st.session_state:
-    st.session_state.calc_result = ""
+if 'investition' not in st.session_state: st.session_state.investition = 500
+if 'ziel_prozent' not in st.session_state: st.session_state.ziel_prozent = 15
+if 'meine_basis_coins' not in st.session_state: st.session_state.meine_basis_coins = ["XBT", "ETH", "SOL", "PEPE"]
+if 'geoeffnete_charts' not in st.session_state: st.session_state.geoeffnete_charts = []
+if 'fiat_wahl' not in st.session_state: st.session_state.fiat_wahl = "EUR"
+if 'tz_wahl' not in st.session_state: st.session_state.tz_wahl = "deutschland (berlin / mez)"
 
-# ==========================================
-# 🧮 TASCHENRECHNER (Funktionen)
-# ==========================================
-def calculate():
-    try:
-        # Sichere Auswertung von Basis-Mathematik
-        st.session_state.calc_result = str(eval(st.session_state.calc_input, {"__builtins__": None}, {}))
-    except Exception:
-        st.session_state.calc_result = "Fehler"
+# Portfolio-Gedächtnis
+if 'port_coin' not in st.session_state: st.session_state.port_coin = "XBT"
+if 'port_menge' not in st.session_state: st.session_state.port_menge = 0.0
+if 'port_kaufpreis' not in st.session_state: st.session_state.port_kaufpreis = 0.0
 
 # ==========================================
 # 🎛️ EINSTELLUNGEN & SEITENLEISTE
 # ==========================================
 st.sidebar.header("⚙️ system-einstellungen")
 
-if st.sidebar.button("🔄 auf werkseinstellungen zurücksetzen"):
-    st.session_state.investition = 500
-    st.session_state.ziel_prozent = 15
-    st.session_state.meine_basis_coins = ["XBT", "ETH", "SOL", "PEPE"]
-    st.session_state.fiat_wahl = "EUR"
-    st.session_state.tz_wahl = "deutschland (berlin / mez)"
-    st.session_state.alle_aufklappen = False
+if st.sidebar.button("🔄 alles auf werkseinstellungen"):
+    for key in list(st.session_state.keys()):
+        del st.session_state[key]
     st.rerun()
-
-st.sidebar.markdown("---")
-
-# Taschenrechner in der Seitenleiste (Ausklappbar)
-with st.sidebar.expander("🧮 taschenrechner", expanded=False):
-    st.text_input("Berechnung eingeben (z.B. 1500 * 0.03):", key="calc_input", on_change=calculate)
-    if st.session_state.calc_result:
-        st.markdown(f"**Ergebnis:** `{st.session_state.calc_result}`")
-    st.caption("Nutze: + (Plus), - (Minus), * (Mal), / (Geteilt)")
-
-st.sidebar.markdown("---")
-
-st.sidebar.selectbox("🏛️ krypto-börse (api):", ["kraken", "binance (in vorbereitung)", "coinbase (in vorbereitung)"])
-st.sidebar.caption("⚠️ kann nur geändert werden, wenn die api-schnittstelle aktiv ist.")
 
 st.sidebar.markdown("---")
 
@@ -77,127 +44,59 @@ zeitzonen_optionen = {
     "england (london / gmt)": "Europe/London",
     "schweiz (zürich / cet)": "Europe/Zurich",
     "usa (new york / est)": "America/New_York",
-    "japan (tokyo / jst)": "Asia/Tokyo",
-    "weltzeit (utc)": "UTC"
+    "japan (tokyo / jst)": "Asia/Tokyo"
 }
-
 tz_keys = list(zeitzonen_optionen.keys())
-gewaehlte_tz_label = st.sidebar.selectbox(
-    "🌍 lokale zeitzone:", 
-    tz_keys, 
-    index=tz_keys.index(st.session_state.tz_wahl) if st.session_state.tz_wahl in tz_keys else 0,
-    key="select_tz_safe"
-)
+gewaehlte_tz_label = st.sidebar.selectbox("🌍 lokale zeitzone:", tz_keys, index=tz_keys.index(st.session_state.tz_wahl) if st.session_state.tz_wahl in tz_keys else 0)
 st.session_state.tz_wahl = gewaehlte_tz_label
 aktuelle_zeitzone = ZoneInfo(zeitzonen_optionen[gewaehlte_tz_label])
 
-FIAT_SYMBOLE = {
-    "EUR": "€", "USD": "$", "GBP": "£", "CHF": "chf", "CAD": "ca$", "AUD": "au$", "JPY": "¥"
-}
+FIAT_SYMBOLE = {"EUR": "€", "USD": "$", "GBP": "£", "CHF": "chf", "CAD": "ca$", "AUD": "au$", "JPY": "¥"}
 fiat_keys = list(FIAT_SYMBOLE.keys())
-basis_waehrung = st.sidebar.selectbox(
-    "💵 bevorzugte fiat-währung:", 
-    fiat_keys, 
-    index=fiat_keys.index(st.session_state.fiat_wahl) if st.session_state.fiat_wahl in fiat_keys else 0,
-    key="select_fiat_safe"
-)
+basis_waehrung = st.sidebar.selectbox("💵 fiat-währung:", fiat_keys, index=fiat_keys.index(st.session_state.fiat_wahl) if st.session_state.fiat_wahl in fiat_keys else 0)
 st.session_state.fiat_wahl = basis_waehrung
+w_symbol = FIAT_SYMBOLE.get(basis_waehrung, basis_waehrung)
 
 st.sidebar.markdown("---")
 st.sidebar.header("🎛️ deine watchlist")
 
 COIN_BASIS = {
-    "XBT": "bitcoin - platz 1", "ETH": "ethereum - platz 2", "SOL": "solana - platz 5", 
-    "ADA": "cardano - platz 10", "DOT": "polkadot - platz 15", "LINK": "chainlink - platz 16",
-    "BCH": "bitcoin cash - platz 17", "LTC": "litecoin - platz 21", "PEPE": "pepe - platz 24", 
-    "SUI": "sui - platz 28", "FET": "fetch.ai - platz 33", "XMR": "monero - platz 35",
-    "ARB": "arbitrum - platz 42"
+    "XBT": "bitcoin (1)", "ETH": "ethereum (2)", "SOL": "solana (5)", 
+    "ADA": "cardano (10)", "DOT": "polkadot (15)", "LINK": "chainlink (16)",
+    "BCH": "bitcoin cash (17)", "LTC": "litecoin (21)", "PEPE": "pepe (24)", 
+    "SUI": "sui (28)", "FET": "fetch.ai (33)", "XMR": "monero (35)", "ARB": "arbitrum (42)"
 }
-alle_basis_coins = list(COIN_BASIS.keys())
-
-def format_basis_label(basis_code):
-    return f"{basis_code} ➔ {COIN_BASIS.get(basis_code, basis_code)}"
 
 auswahl = st.sidebar.multiselect(
-    "währungen suchen (tippen/scrollen):", 
-    options=alle_basis_coins, 
+    "währungen suchen/hinzufügen:", 
+    options=list(COIN_BASIS.keys()), 
     default=st.session_state.meine_basis_coins,
-    format_func=format_basis_label,
-    key="multiselect_coins_safe"
+    format_func=lambda x: f"{x} ➔ {COIN_BASIS.get(x, x)}"
 )
 st.session_state.meine_basis_coins = auswahl
 
+st.session_state.geoeffnete_charts = st.sidebar.multiselect(
+    "📊 dauerhaft geöffnete charts:", 
+    options=st.session_state.meine_basis_coins,
+    default=[c for c in st.session_state.geoeffnete_charts if c in st.session_state.meine_basis_coins],
+    help="Diese Charts bleiben bei jedem Neuladen automatisch aufgeklappt."
+)
+
 st.sidebar.markdown("---")
-st.sidebar.subheader("💰 order-rechner (Neu-Investition)")
+st.sidebar.subheader("💼 mein portfolio (Trailing Stop)")
 
-investition = st.sidebar.number_input(
-    "geplante kaufsumme", 
-    min_value=10, 
-    value=st.session_state.investition, 
-    step=50,
-    key="input_invest_safe"
-)
-st.session_state.investition = investition
+st.session_state.port_coin = st.sidebar.selectbox("welchen coin besitzt du?", st.session_state.meine_basis_coins, index=st.session_state.meine_basis_coins.index(st.session_state.port_coin) if st.session_state.port_coin in st.session_state.meine_basis_coins else 0)
+st.session_state.port_menge = st.sidebar.number_input("meine menge (stück)", min_value=0.0, value=st.session_state.port_menge, step=0.01)
+st.session_state.port_kaufpreis = st.sidebar.number_input(f"mein kaufkurs ({w_symbol})", min_value=0.0, value=st.session_state.port_kaufpreis, step=10.0)
 
-ziel_prozent = st.sidebar.number_input(
-    "ziel-gewinn take-profit (%)", 
-    min_value=1, 
-    max_value=1000, 
-    value=st.session_state.ziel_prozent, 
-    step=1,
-    key="input_ziel_safe"
-)
-st.session_state.ziel_prozent = ziel_prozent
+st.sidebar.markdown("---")
+st.sidebar.subheader("💰 order-rechner (Neu-Einstieg)")
+
+st.session_state.investition = st.sidebar.number_input("geplante kaufsumme", min_value=10, value=st.session_state.investition, step=50)
+st.session_state.ziel_prozent = st.sidebar.number_input("ziel-gewinn take-profit (%)", min_value=1, max_value=1000, value=st.session_state.ziel_prozent, step=1)
 
 # ==========================================
-# HAUPTBEREICH
-# ==========================================
-st.title("🚀 krypto-steuerzentrale | live-radar")
-
-# 🌍 WELTUHREN & ÖFFNUNGSZEITEN (Ausklappbar)
-with st.expander("🌍 weltuhren & börsen-öffnungszeiten (Wann kommt das große Geld?)"):
-    col_u1, col_u2, col_u3, col_u4 = st.columns(4)
-    # Weltzeiten live berechnen
-    utc_now = datetime.utcnow()
-    ny_time = datetime.now(ZoneInfo("America/New_York")).strftime('%H:%M')
-    lon_time = datetime.now(ZoneInfo("Europe/London")).strftime('%H:%M')
-    ger_time = datetime.now(ZoneInfo("Europe/Berlin")).strftime('%H:%M')
-    tok_time = datetime.now(ZoneInfo("Asia/Tokyo")).strftime('%H:%M')
-    
-    col_u1.metric("🗽 New York (Wall Street)", f"{ny_time} Uhr")
-    col_u2.metric("🎡 London (LSE)", f"{lon_time} Uhr")
-    col_u3.metric("🥨 Berlin/Zürich", f"{ger_time} Uhr")
-    col_u4.metric("🗼 Tokyo (TSE)", f"{tok_time} Uhr")
-    
-    st.markdown("""
-    *Krypto-Börsen laufen 24/7. Aber die höchste Volatilität (stärkste Kursbewegungen) entsteht, wenn die traditionellen Aktienmärkte öffnen und Institutionen Geld umschichten:*
-    *   🇺🇸 **USA (Wall Street):** 15:30 - 22:00 Uhr (MEZ) -> *Die wichtigsten Stunden für den Krypto-Markt.*
-    *   🇬🇧 **Europa (London/Frankfurt):** 09:00 - 17:30 Uhr (MEZ)
-    *   🇯🇵 **Asien (Tokyo):** 02:00 - 08:00 Uhr (MEZ)
-    """)
-
-# Hilfe & Erklärung
-with st.expander("❓ hilfe & erklärung (hier klicken, um alle funktionen zu verstehen)"):
-    st.markdown("""
-    ### 🧭 system-handbuch: so liest du das radar
-    dieses dashboard filtert marktrauschen durch nackte mathematik.
-    #### die radar-signale (Farb-Logik angepasst!)
-    *   ⚪ **neutral:** der markt ist ziellos. grau = kein stress, nichts tun.
-    *   🟢 **kauf-zone:** kurs über roter linie, rsi kühl. starkes kaufsignal.
-    *   🔴 **verkauf / gefahr:** markt überhitzt (rsi > 75) oder trendbruch (unter roter linie).
-    """)
-
-# ==========================================
-# MASTER-SCHALTER (Alle auf/zu)
-# ==========================================
-col_m1, col_m2 = st.columns([1, 5])
-with col_m1:
-    if st.button("🔽 Alle aufklappen" if not st.session_state.alle_aufklappen else "🔼 Alle zuklappen"):
-        st.session_state.alle_aufklappen = not st.session_state.alle_aufklappen
-        st.rerun()
-
-# ==========================================
-# MODUL 1: DATENBESCHAFFUNG 
+# DATENBESCHAFFUNG & TICKER
 # ==========================================
 @st.cache_data(ttl=240)
 def fetch_kraken_ohlcv(pair: str, interval: int = 240):
@@ -217,22 +116,64 @@ def fetch_kraken_ohlcv(pair: str, interval: int = 240):
         df['rsi'] = 100 - (100 / (1 + gain / loss))
         df['volume_ratio'] = df['volume'] / df['volume'].rolling(20).mean()
         df['sma_200'] = df['close'].rolling(200).mean()
+        return df, datetime.now(aktuelle_zeitzone).strftime('%H:%M:%S')
+    except: return None
+
+@st.cache_data(ttl=300)
+def fetch_global_ticker(fiat):
+    try:
+        top_coins = ["XBT", "ETH", "SOL", "ADA", "DOGE", "PEPE", "SUI"]
+        pairs = ",".join([f"{c}{fiat}" for c in top_coins])
+        res = requests.get("https://api.kraken.com/0/public/Ticker", params={"pair": pairs}).json()
+        if res.get('error'): return "Ticker-Daten derzeit nicht verfügbar."
         
-        abruf_zeit = datetime.now(aktuelle_zeitzone).strftime('%H:%M:%S')
-        return df, abruf_zeit
-    except:
-        return None
+        ticker_items = []
+        for pair_name, data in res['result'].items():
+            name = pair_name.replace(fiat, "").replace("XXBTZ", "XBT").replace("XETHZ", "ETH")
+            c = float(data['c'][0])
+            o = float(data['o'])
+            pct = ((c - o) / o) * 100 if o > 0 else 0
+            sym = "🟢" if pct >= 0 else "🔴"
+            ticker_items.append(f"{sym} {name}: {pct:+.2f}%")
+        return " &nbsp;&nbsp; | &nbsp;&nbsp; ".join(ticker_items)
+    except: return "Ticker Offline"
+
+# ==========================================
+# HAUPTBEREICH
+# ==========================================
+st.title("🚀 krypto-steuerzentrale | live-radar")
+
+# Laufband (Ticker)
+ticker_text = fetch_global_ticker(st.session_state.fiat_wahl)
+st.markdown(f"<marquee style='font-size: 16px; font-weight: bold; color: #d4d4d4; background-color: #1e1e1e; padding: 5px; border-radius: 5px;'>{ticker_text}</marquee>", unsafe_allow_html=True)
+
+# Weltuhren
+with st.expander("🌍 weltuhren & börsen-öffnungszeiten (Wann kommt das große Geld?)"):
+    col_u1, col_u2, col_u3, col_u4 = st.columns(4)
+    ny_time = datetime.now(ZoneInfo("America/New_York")).strftime('%H:%M')
+    lon_time = datetime.now(ZoneInfo("Europe/London")).strftime('%H:%M')
+    ger_time = datetime.now(ZoneInfo("Europe/Berlin")).strftime('%H:%M')
+    tok_time = datetime.now(ZoneInfo("Asia/Tokyo")).strftime('%H:%M')
+    
+    col_u1.metric("🗽 New York (Wall Street)", f"{ny_time} Uhr")
+    col_u2.metric("🎡 London (LSE)", f"{lon_time} Uhr")
+    col_u3.metric("🥨 Berlin/Zürich", f"{ger_time} Uhr")
+    col_u4.metric("🗼 Tokyo (TSE)", f"{tok_time} Uhr")
+    
+    st.markdown("""
+    *Krypto-Börsen laufen 24/7. Die höchste Volatilität entsteht jedoch, wenn traditionelle Aktienmärkte öffnen:*
+    *   🇺🇸 **USA (Wall Street):** 15:30 - 22:00 Uhr (MEZ) -> *Die wichtigsten Stunden für den Markt.*
+    *   🇬🇧 **Europa (London/Frankfurt):** 09:00 - 17:30 Uhr (MEZ)
+    *   🇯🇵 **Asien (Tokyo):** 02:00 - 08:00 Uhr (MEZ)
+    """)
 
 # ==========================================
 # MODUL 2: DAS FRAGMENTIERTE COCKPIT
 # ==========================================
 @st.fragment(run_every=300)
 def live_radar_cockpit():
-    jetzt_string = datetime.now(aktuelle_zeitzone).strftime('%d.%m.%Y - %H:%M:%S')
-    st.write(f"🔄 **autopilot aktiv:** (radar zuletzt lautlos aktualisiert: {jetzt_string})")
+    st.write(f"🔄 **autopilot aktiv:** (radar zuletzt lautlos aktualisiert: {datetime.now(aktuelle_zeitzone).strftime('%H:%M:%S')})")
     st.markdown("---")
-
-    w_symbol = FIAT_SYMBOLE.get(st.session_state.fiat_wahl, st.session_state.fiat_wahl)
 
     for i, basis_coin in enumerate(st.session_state.meine_basis_coins):
         anzeige_name = COIN_BASIS.get(basis_coin, "altcoin")
@@ -241,7 +182,7 @@ def live_radar_cockpit():
         daten_paket = fetch_kraken_ohlcv(voller_coin_name, interval=240)
         
         if daten_paket is None:
-            st.error(f"⚠️ handelspaar **{voller_coin_name} ({anzeige_name})** wird auf dieser börse aktuell nicht angeboten.")
+            st.error(f"⚠️ handelspaar **{voller_coin_name}** wird auf dieser börse aktuell nicht angeboten.")
             st.markdown("---")
             continue
 
@@ -252,16 +193,18 @@ def live_radar_cockpit():
         sma = aktuelle_kerze['sma_200']
         vol = aktuelle_kerze['volume_ratio']
 
-        # NEUE FARBLOGIK: Neutral ist jetzt Grau (⚪). Klare Signale (Grün/Rot)
-        status = "⚪ neutral (abwarten - finger weg)"
+        # KLARE SIGNAL-LOGIK (Keine farbliche Verwirrung mehr)
+        status = "⚪ neutral (abwarten / halten)"
         if preis > sma and (45 <= rsi <= 65) and vol >= 2.0: status = "🟢 KAUF-ZONE (einstieg prüfen)"
         elif rsi >= 75: status = "🔴 VERKAUF (markt überhitzt)"
         elif preis < sma: status = "🔴 VERKAUF (trendbruch unter rote linie)"
 
-        if rsi >= 75: rsi_ampel = "🔴"
-        elif rsi >= 65: rsi_ampel = "🟡"
-        elif rsi >= 45: rsi_ampel = "🟢"
-        else: rsi_ampel = "🧊"
+        # RSI Ampel ist nur noch Grau (Neutral), außer bei Gefahr oder echtem Kaufsignal
+        rsi_ampel = "⚪"
+        if status.startswith("🟢"): rsi_ampel = "🟢"
+        elif rsi >= 75 or status.startswith("🔴"): rsi_ampel = "🔴"
+        elif rsi <= 45: rsi_ampel = "🧊" # Panik/Abverkauf
+        
         dezimalstellen = 8 if preis < 0.01 else 4
 
         col_k1, col_k2, col_k3, col_k4, col_k5 = st.columns([3.5, 2, 2, 0.5, 0.5])
@@ -274,24 +217,43 @@ def live_radar_cockpit():
             st.metric(label=f"rsi (puls)", value=f"{rsi:.1f} {rsi_ampel}")
         with col_k4:
             st.markdown("<br>", unsafe_allow_html=True) 
-            if i > 0:
-                if st.button("⬆️", key=f"up_{basis_coin}"):
-                    st.session_state.meine_basis_coins[i], st.session_state.meine_basis_coins[i-1] = st.session_state.meine_basis_coins[i-1], st.session_state.meine_basis_coins[i]
-                    st.rerun()
+            if i > 0 and st.button("⬆️", key=f"up_{basis_coin}"):
+                st.session_state.meine_basis_coins[i], st.session_state.meine_basis_coins[i-1] = st.session_state.meine_basis_coins[i-1], st.session_state.meine_basis_coins[i]
+                st.rerun()
         with col_k5:
             st.markdown("<br>", unsafe_allow_html=True)
-            if i < len(st.session_state.meine_basis_coins) - 1:
-                if st.button("⬇️", key=f"down_{basis_coin}"):
-                    st.session_state.meine_basis_coins[i], st.session_state.meine_basis_coins[i+1] = st.session_state.meine_basis_coins[i+1], st.session_state.meine_basis_coins[i]
-                    st.rerun()
+            if i < len(st.session_state.meine_basis_coins) - 1 and st.button("⬇️", key=f"down_{basis_coin}"):
+                st.session_state.meine_basis_coins[i], st.session_state.meine_basis_coins[i+1] = st.session_state.meine_basis_coins[i+1], st.session_state.meine_basis_coins[i]
+                st.rerun()
 
-        # Nutzung des Master-Schalters für das Aufklappen
-        with st.expander(f"📊 order-plan & chart für {voller_coin_name}", expanded=st.session_state.alle_aufklappen):
+        # Selektives Aufklappen anhand der Sidebar-Auswahl
+        is_expanded = basis_coin in st.session_state.geoeffnete_charts
+
+        with st.expander(f"📊 plan & chart für {voller_coin_name}", expanded=is_expanded):
+            
+            # PORTFOLIO-ANZEIGE (Nur wenn dieser Coin im Bestand eingetragen wurde)
+            if basis_coin == st.session_state.port_coin and st.session_state.port_menge > 0:
+                st.success(f"💼 **Dein Bestand:** {st.session_state.port_menge} Stück (Kaufkurs: {st.session_state.port_kaufpreis} {w_symbol})")
+                
+                aktueller_wert = st.session_state.port_menge * preis
+                investiert = st.session_state.port_menge * st.session_state.port_kaufpreis
+                pnl = aktueller_wert - investiert
+                pnl_pct = (pnl / investiert) * 100 if investiert > 0 else 0
+                
+                # Trailing Stop: 3% unter dem *aktuellen* Höchstwert (hier vereinfacht zum Live-Preis)
+                trailing_stop = preis * 0.97
+                
+                col_p1, col_p2, col_p3 = st.columns(3)
+                col_p1.metric("Aktueller Wert", f"{aktueller_wert:.2f} {w_symbol}")
+                col_p2.metric("Gewinn / Verlust", f"{pnl:.2f} {w_symbol}", f"{pnl_pct:.2f}%")
+                col_p3.metric("🚨 Empfohlener Trailing-Stop (-3%)", f"{trailing_stop:.{dezimalstellen}f} {w_symbol}")
+                st.markdown("---")
+
             col_d1, col_d2 = st.columns([1, 1.5])
             
             with col_d1:
                 st.info(f"**signal: {status}**")
-                st.markdown(f"**order-plan für {st.session_state.investition} {w_symbol}:**")
+                st.markdown(f"**order-rechner (Neu-Einstieg für {st.session_state.investition} {w_symbol}):**")
                 coins_gekauft = st.session_state.investition / preis
                 limit_3_pct_preis = preis * 0.97
                 verlust = st.session_state.investition - (coins_gekauft * limit_3_pct_preis)
@@ -307,30 +269,36 @@ def live_radar_cockpit():
                 fig.add_trace(go.Scatter(
                     x=df_live['timestamp'], y=df_live['close'], 
                     mode='lines', line=dict(color='#4da6ff', width=2), name='kurs',
-                    hovertemplate=f'<b>kurs:</b> %{{y:.4f}} {w_symbol}<br><b>block-start:</b> %{{x|%d.%m. - %H:%M}}<extra></extra>'
+                    hovertemplate=f'<b>kurs:</b> %{{y:.4f}} {w_symbol}<br><b>zeit:</b> %{{x|%d.%m. - %H:%M}}<extra></extra>'
                 ))
                 fig.add_trace(go.Scatter(
                     x=df_live['timestamp'], y=df_live['sma_200'], 
-                    mode='lines', line=dict(color='#ff4d4d', width=2, dash='dash'), name='sma 200 (trend)',
-                    hovertemplate=f'<b>trend-grenze:</b> %{{y:.4f}} {w_symbol}<br><b>block-start:</b> %{{x|%d.%m. - %H:%M}}<extra></extra>'
+                    mode='lines', line=dict(color='#ff4d4d', width=2, dash='dash'), name='sma 200',
+                    hovertemplate=f'<b>trend-grenze:</b> %{{y:.4f}} {w_symbol}<br><b>zeit:</b> %{{x|%d.%m. - %H:%M}}<extra></extra>'
                 ))
                 
-                letzter_zeitpunkt = df_live['timestamp'].iloc[-1]
-                zukunft = letzter_zeitpunkt + pd.Timedelta(hours=48)
-                start_ansicht = df_live['timestamp'].iloc[-100]
+                # GRÜNE UND ROTE MARKER IM CHART!
+                kauf_signale = df_live[(df_live['close'] > df_live['sma_200']) & (df_live['rsi'] >= 45) & (df_live['rsi'] <= 65) & (df_live['volume_ratio'] >= 2.0)]
+                verkauf_signale = df_live[(df_live['rsi'] >= 75) | (df_live['close'] < df_live['sma_200'])]
+
+                fig.add_trace(go.Scatter(
+                    x=kauf_signale['timestamp'], y=kauf_signale['close'],
+                    mode='markers', marker=dict(color='green', size=10, symbol='triangle-up'), name='Kauf-Signal'
+                ))
+                fig.add_trace(go.Scatter(
+                    x=verkauf_signale['timestamp'], y=verkauf_signale['close'],
+                    mode='markers', marker=dict(color='red', size=8, symbol='x'), name='Verkauf-Signal'
+                ))
                 
                 fig.update_layout(
                     margin=dict(l=0, r=0, t=10, b=0),
-                    plot_bgcolor='rgba(0,0,0,0)',
-                    paper_bgcolor='rgba(0,0,0,0)',
-                    xaxis=dict(range=[start_ansicht, zukunft], tickformat="%d.%m.", tickfont=dict(size=10, color='gray'), showgrid=False),
-                    yaxis=dict(tickfont=dict(size=10, color='gray'), showgrid=True, gridcolor='#333333'),
-                    showlegend=False,
-                    height=200,
-                    hovermode="x unified"
+                    plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)',
+                    xaxis=dict(range=[df_live['timestamp'].iloc[-100], df_live['timestamp'].iloc[-1] + pd.Timedelta(hours=48)], showgrid=False),
+                    yaxis=dict(showgrid=True, gridcolor='#333333'),
+                    showlegend=False, height=200, hovermode="x unified"
                 )
                 st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False}, key=f"chart_{voller_coin_name}")
-                st.caption("🔴 **rote linie: makro-trend (sma 200)** ➔ fällt der kurs darunter, droht ein trendbruch.")
+                st.caption("🟢 **Grünes Dreieck:** Kauf-Signal der Vergangenheit | ❌ **Rotes X:** Verkaufs-Signal")
 
         st.markdown("---")
 
