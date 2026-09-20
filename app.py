@@ -1,10 +1,8 @@
 import streamlit as st
 import requests
 import pandas as pd
-import matplotlib.pyplot as plt
+import plotly.graph_objects as go
 from datetime import datetime
-import warnings
-warnings.filterwarnings('ignore')
 
 # ==========================================
 # ⚙️ SEITEN-KONFIGURATION
@@ -12,45 +10,23 @@ warnings.filterwarnings('ignore')
 st.set_page_config(page_title="Steuerzentrale Radar", layout="wide")
 st.title("🚀 Krypto-Steuerzentrale | Live-Radar")
 
-# KLARE NAMEN ZUORDNEN
 COIN_NAMEN = {
-    "XBTEUR": "Bitcoin",
-    "ETHEUR": "Ethereum",
-    "SOLEUR": "Solana",
-    "PEPEEUR": "Pepe",
-    "SUIEUR": "Sui",
-    "FETEUR": "Fetch.ai",
-    "ARBEUR": "Arbitrum"
+    "XBTEUR": "Bitcoin", "ETHEUR": "Ethereum", "SOLEUR": "Solana", 
+    "PEPEEUR": "Pepe", "SUIEUR": "Sui", "FETEUR": "Fetch.ai", "ARBEUR": "Arbitrum"
 }
 
-# HANDBUCH / REGELWERK (Aufklappbar, um Platz zu sparen)
-with st.expander("📖 Handbuch & Strategie (Hier aufklappen für Erklärungen)"):
-    st.markdown("""
-    **1. Die Zonen-Logik:**
-    * 🟢 **NEUTRAL:** Kein mathematischer Vorteil. Hände stillhalten.
-    * 🔥 **KAUF-ZONE:** Makro-Trend intakt (Kurs über SMA 200), RSI abgekühlt (45-65), starkes Volumen.
-    * ⚠️ **VERKAUF (Überhitzt):** RSI klettert über 75. Der Markt ist gierig, ein Rücksetzer ist hochwahrscheinlich. Gewinnsicherung planen.
-    * 🩸 **VERKAUF (Trendbruch):** Kurs stürzt unter SMA 200. Der Makro-Trend ist gebrochen.
-
-    **2. Die Indikatoren:**
-    * **SMA 200:** Der Trend-Wächter (rote gestrichelte Linie im Chart). Zieht die harte Grenze zwischen Bullen- und Bärenmarkt.
-    * **RSI:** Der Puls des Marktes. Reagiert viel schneller als der Preis und warnt vor Überhitzung.
-    """)
-
-# Speicher für deine Währungen
-if 'meine_coins' not in st.session_state:
-    st.session_state.meine_coins = ["XBTEUR", "ETHEUR", "SOLEUR"]
-
 # ==========================================
-# ⚙️ SEITENLEISTE: BEDIENFELDER
+# ⚙️ SEITENLEISTE: BEDIENFELDER (Mit Worterkennung)
 # ==========================================
 st.sidebar.header("🎛️ Deine Einstellungen")
 
-neuer_coin = st.sidebar.text_input("Neuen Coin hinzufügen (z.B. PEPEEUR):").upper()
-if st.sidebar.button("➕ Hinzufügen"):
-    if neuer_coin and neuer_coin not in st.session_state.meine_coins:
-        st.session_state.meine_coins.append(neuer_coin)
-        st.rerun()
+# Die Worterkennung (Dropdown)
+alle_kraken_coins = ["XBTEUR", "ETHEUR", "SOLEUR", "PEPEEUR", "SUIEUR", "FETEUR", "ARBEUR", "ADAEUR", "DOGEEUR", "DOTEUR", "LINKEUR"]
+gewaehlte_coins = st.sidebar.multiselect(
+    "Währungen suchen / auswählen:", 
+    options=alle_kraken_coins, 
+    default=["XBTEUR", "ETHEUR", "SOLEUR", "PEPEEUR"] # Diese bleiben für immer gespeichert
+)
 
 st.sidebar.markdown("---")
 st.sidebar.subheader("💰 Order-Rechner")
@@ -65,8 +41,7 @@ def fetch_kraken_ohlcv(pair: str, interval: int = 240):
     url = "https://api.kraken.com/0/public/OHLC"
     try:
         response = requests.get(url, params={'pair': pair, 'interval': interval}).json()
-        if len(response.get('error', [])) > 0:
-            return None
+        if len(response.get('error', [])) > 0: return None
         result_key = list(response['result'].keys())[0]
         df = pd.DataFrame(response['result'][result_key], columns=['timestamp', 'open', 'high', 'low', 'close', 'vwap', 'volume', 'count'])
         df['timestamp'] = pd.to_datetime(df['timestamp'], unit='s')
@@ -89,17 +64,14 @@ def fetch_kraken_ohlcv(pair: str, interval: int = 240):
 st.write(f"Letztes Update: {datetime.now().strftime('%d.%m.%Y - %H:%M:%S')} (Daten laden alle 5 Min. neu)")
 st.markdown("---")
 
-for coin in st.session_state.meine_coins:
+for coin in gewaehlte_coins:
     anzeige_name = COIN_NAMEN.get(coin, "Altcoin")
     st.markdown(f"### {coin} ({anzeige_name})")
     
     df_live = fetch_kraken_ohlcv(coin, interval=240)
     
     if df_live is None:
-        st.error(f"⚠️ Fehler: {coin} auf Kraken nicht gefunden. Hast du 'EUR' am Ende vergessen?")
-        if st.button(f"🗑️ {coin} löschen", key=f"err_{coin}"):
-            st.session_state.meine_coins.remove(coin)
-            st.rerun()
+        st.error(f"⚠️ Fehler: Keine Daten für {coin}.")
         continue
 
     aktuelle_kerze = df_live.iloc[-1]
@@ -108,22 +80,25 @@ for coin in st.session_state.meine_coins:
     sma = aktuelle_kerze['sma_200']
     vol = aktuelle_kerze['volume_ratio']
 
+    # Signal-Logik
     status = "🟢 NEUTRAL (Abwarten)"
-    if preis > sma and (45 <= rsi <= 65) and vol >= 2.0:
-        status = "🔥 KAUF-ZONE"
-    elif rsi >= 75:
-        status = "⚠️ VERKAUF (Überhitzt)"
-    elif preis < sma:
-        status = "🩸 VERKAUF (Trendbruch)"
+    if preis > sma and (45 <= rsi <= 65) and vol >= 2.0: status = "🔥 KAUF-ZONE"
+    elif rsi >= 75: status = "⚠️ VERKAUF (Überhitzt)"
+    elif preis < sma: status = "🩸 VERKAUF (Trendbruch)"
 
-    # Komma-Logik für extrem billige Coins (PEPE)
+    # Die neue RSI-Ampel
+    if rsi >= 75: rsi_ampel = "🔴"
+    elif rsi >= 65: rsi_ampel = "🟡"
+    elif rsi >= 45: rsi_ampel = "🟢"
+    else: rsi_ampel = "🧊"
+
     dezimalstellen = 8 if preis < 0.01 else 4
     
     col1, col2, col3 = st.columns([1, 1.5, 2])
     
     with col1:
         st.metric(label="Aktueller Kurs", value=f"{preis:.{dezimalstellen}f} €")
-        st.metric(label="RSI (Puls)", value=f"{rsi:.1f}")
+        st.metric(label=f"RSI (Puls) {rsi_ampel}", value=f"{rsi:.1f}")
         st.info(f"**{status}**")
         
     with col2:
@@ -137,26 +112,23 @@ for coin in st.session_state.meine_coins:
         st.markdown(f"- 🪙 **Menge:** {coins_gekauft:,.2f} Stück")
         st.markdown(f"- 🛑 **Notbremse (-3%):** Limit bei **{limit_3_pct_preis:.{dezimalstellen}f} €** (Verlust: -{verlust_euro:.2f} €)")
         st.markdown(f"- 🎯 **Ziel (+{ziel_prozent}%):** Limit bei **{ziel_preis:.{dezimalstellen}f} €** (Gewinn: +{gewinn_euro:.2f} €)")
-        if st.button(f"🗑️ {coin} ausblenden", key=f"del_{coin}"):
-            st.session_state.meine_coins.remove(coin)
-            st.rerun()
 
     with col3:
-        # Chart einbauen, farblich an Dark Mode angepasst
-        fig, ax = plt.subplots(figsize=(6, 2.5))
-        fig.patch.set_facecolor('#0e1117') 
-        ax.set_facecolor('#0e1117')
+        # Interaktiver Plotly-Chart
+        fig = go.Figure()
+        fig.add_trace(go.Scatter(x=df_live['timestamp'], y=df_live['close'], mode='lines', line=dict(color='#4da6ff', width=2), name='Kurs'))
+        fig.add_trace(go.Scatter(x=df_live['timestamp'], y=df_live['sma_200'], mode='lines', line=dict(color='#ff4d4d', width=2, dash='dash'), name='SMA 200'))
         
-        ax.plot(df_live['timestamp'], df_live['close'], color='#4da6ff', linewidth=1.5, label='Kurs')
-        ax.plot(df_live['timestamp'], df_live['sma_200'], color='#ff4d4d', linestyle='--', linewidth=1.5, label='SMA 200 (Trend)')
-        
-        ax.tick_params(axis='x', colors='white', labelsize=8)
-        ax.tick_params(axis='y', colors='white', labelsize=8)
-        for spine in ax.spines.values():
-            spine.set_color('#555555')
-        ax.grid(True, alpha=0.1)
-        ax.legend(loc='upper left', fontsize=8, facecolor='#0e1117', edgecolor='none', labelcolor='white')
-        
-        st.pyplot(fig)
+        fig.update_layout(
+            margin=dict(l=0, r=0, t=10, b=0),
+            plot_bgcolor='rgba(0,0,0,0)',
+            paper_bgcolor='rgba(0,0,0,0)',
+            xaxis=dict(tickformat="%d.%m.\n%H:%M", tickfont=dict(size=10, color='gray'), showgrid=False),
+            yaxis=dict(tickfont=dict(size=10, color='gray'), showgrid=True, gridcolor='#333333'),
+            showlegend=False,
+            height=250,
+            hovermode="x unified"
+        )
+        st.plotly_chart(fig, use_container_width=True)
 
     st.markdown("---")
