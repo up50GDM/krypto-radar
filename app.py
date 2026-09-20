@@ -18,14 +18,23 @@ st.markdown('<meta http-equiv="refresh" content="300">', unsafe_allow_html=True)
 # ==========================================
 st.sidebar.header("⚙️ System-Einstellungen")
 
-zeitzonen_liste = ["Europe/Berlin (MEZ)", "Europe/London (GMT)", "America/New_York (EST)", "Asia/Tokyo (JST)", "UTC"]
+zeitzonen_liste = ["Europe/Berlin (MEZ)", "Europe/London (GMT)", "Europe/Zurich (CET)", "America/New_York (EST)", "Asia/Tokyo (JST)", "UTC"]
 gewaehlte_zeitzone_str = st.sidebar.selectbox("🌍 Lokale Zeitzone:", zeitzonen_liste)
 aktuelle_zeitzone = ZoneInfo(gewaehlte_zeitzone_str.split(" ")[0])
 
 st.sidebar.selectbox("🏛️ Krypto-Börse (API):", ["Kraken", "Binance (In Vorbereitung)", "Coinbase (In Vorbereitung)"])
 
-# Der funktionale Währungs-Schalter
-basis_waehrung = st.sidebar.radio("💵 Bevorzugte Basis-Währung:", ["EUR", "USD"], horizontal=True)
+# Das neue weltweite Fiat-Währungs-Menü
+FIAT_SYMBOLE = {
+    "EUR": "€", 
+    "USD": "$", 
+    "GBP": "£", 
+    "CHF": "CHF", 
+    "CAD": "CA$", 
+    "AUD": "AU$", 
+    "JPY": "¥"
+}
+basis_waehrung = st.sidebar.selectbox("💵 Bevorzugte Fiat-Währung:", list(FIAT_SYMBOLE.keys()))
 
 st.sidebar.markdown("---")
 st.sidebar.header("🎛️ Deine Watchlist")
@@ -52,7 +61,6 @@ with st.expander("❓ HILFE & ERKLÄRUNG (Hier klicken, um alle Funktionen des R
     *   🩸 **VERKAUF (Trendbruch):** Kurs stürzt unter rote Linie. Reißleine ziehen!
     """)
 
-# Basis-Lexikon (Wir speichern nur die Kürzel ohne Endung)
 COIN_BASIS = {
     "XBT": "Bitcoin - Platz 1", 
     "ETH": "Ethereum - Platz 2", 
@@ -128,18 +136,16 @@ jetzt_string = datetime.now(aktuelle_zeitzone).strftime('%d.%m.%Y - %H:%M:%S')
 st.write(f"🔄 **Autopilot aktiv:** (Gesamtsystem zuletzt aktualisiert: {jetzt_string})")
 st.markdown("---")
 
-w_symbol = "€" if basis_waehrung == "EUR" else "$"
+w_symbol = FIAT_SYMBOLE.get(basis_waehrung, basis_waehrung)
 
 for i, basis_coin in enumerate(st.session_state.meine_basis_coins):
     anzeige_name = COIN_BASIS.get(basis_coin, "Altcoin")
-    
-    # Der entscheidende Moment: Hier wird die Währung (EUR/USD) dynamisch drangeklebt
     voller_coin_name = f"{basis_coin}{basis_waehrung}"
     
     daten_paket = fetch_kraken_ohlcv(voller_coin_name, interval=240)
     
     if daten_paket is None:
-        st.error(f"⚠️ Fehler: Keine Daten auf Kraken für {voller_coin_name} gefunden.")
+        st.error(f"⚠️ Handelspaar {voller_coin_name} wird auf dieser Börse aktuell nicht angeboten.")
         st.markdown("---")
         continue
 
