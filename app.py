@@ -10,12 +10,45 @@ from datetime import datetime
 st.set_page_config(page_title="Steuerzentrale Radar", layout="wide")
 st.title("🚀 Krypto-Steuerzentrale | Live-Radar")
 
+# ==========================================
+# ❓ ZENTRALES INHALTSVERZEICHNIS & HILFE
+# ==========================================
+with st.expander("❓ HILFE & ERKLÄRUNG (Hier klicken, um alle Funktionen des Radars zu verstehen)"):
+    st.markdown("""
+    ### 🧭 System-Handbuch: So liest du das Radar
+    Dieses Dashboard ist ein rationales Messinstrument. Es trifft keine Entscheidungen aus dem Bauch heraus, sondern filtert Marktrauschen durch nackte Mathematik.
+
+    #### 1. Die Messgeräte (Was bedeuten die Zahlen?)
+    *   **Aktueller Kurs:** Der echte Live-Preis direkt von der Krypto-Börse Kraken.
+    *   **RSI (Der Puls des Marktes):** Zeigt als Zahl zwischen 0 und 100, ob ein Markt gesund atmet oder heißläuft.
+        *   🟢 **45 bis 65:** Gesunde Zone (Perfekte Vorbereitung für Einstiege).
+        *   🟡 **65 bis 75:** Warnzone (Der Markt wird heißer).
+        *   🔴 **Ab 75:** Gefahr! (Der Markt wird von Gier getrieben, ein Absturz ist hochwahrscheinlich).
+        *   🧊 **Unter 45:** Zu kalt (Panik-Abverkauf läuft).
+    *   **SMA 200 (Die rote Linie im Chart):** Der Durchschnittspreis der letzten 200 Zeitabschnitte. Das ist die härteste Grenze des Systems. Sie trennt Aufwärts- von Abwärtstrends.
+
+    #### 2. Die Radar-Signale (Was ist zu tun?)
+    *   🟢 **NEUTRAL (Abwarten - Finger weg):** Der Markt ist ziellos. Hände stillhalten schützt dein Kapital.
+    *   🔥 **KAUF-ZONE (Einstieg prüfen):** Der Kurs liegt über der roten Linie, das Volumen explodiert und der Puls (RSI) ist kühl. Die Mathematik gibt grünes Licht.
+    *   ⚠️ **VERKAUF (Markt überhitzt):** Der Puls ist im roten Bereich (RSI > 75). Zeit, in der Steuerzentrale über eine Gewinnsicherung nachzudenken.
+    *   🩸 **VERKAUF (Trendbruch):** Lebensgefahr. Der Kurs ist unter die rote Trend-Linie gestürzt. Die Reißleine muss gezogen werden.
+
+    #### 3. Der Order-Plan (Rechner)
+    Das System rechnet dir live aus, wo du deine Absicherungen bei Kraken eintragen musst, basierend auf deiner eingestellten Kaufsumme.
+    *   🛑 **Notbremse (-3%):** Dein eiserner Stop-Loss. Fällt der Kurs um 3%, rettet dich dieses Limit vor einem Totalabsturz.
+    *   🎯 **Ziel (+X%):** Dein Take-Profit. Der Punkt, an dem du rational und ohne Emotionen deinen Gewinn mitnimmst.
+
+    #### 4. Die Bedienung
+    *   **Sortieren:** Klicke einfach auf **⬆️ Hoch** oder **⬇️ Runter** neben einem Währungsnamen, um deine Prioritäten-Liste anzupassen.
+    *   **Einblenden/Ausblenden:** Nutze das Auswahlfeld ganz links in der Leiste, um neue Währungen zu aktivieren oder zu entfernen.
+    """)
+
 COIN_NAMEN = {
     "XBTEUR": "Bitcoin", "ETHEUR": "Ethereum", "SOLEUR": "Solana", 
     "PEPEEUR": "Pepe", "SUIEUR": "Sui", "FETEUR": "Fetch.ai", "ARBEUR": "Arbitrum"
 }
 
-# 1. Das Gedächtnis für deine Sortierung laden
+# Gedächtnis für deine Sortierung
 if 'meine_coins' not in st.session_state:
     st.session_state.meine_coins = ["XBTEUR", "ETHEUR", "SOLEUR", "PEPEEUR", "SUIEUR", "FETEUR", "ARBEUR"]
 
@@ -26,14 +59,12 @@ st.sidebar.header("🎛️ Deine Einstellungen")
 
 alle_kraken_coins = ["XBTEUR", "ETHEUR", "SOLEUR", "PEPEEUR", "SUIEUR", "FETEUR", "ARBEUR", "ADAEUR", "DOGEEUR", "DOTEUR", "LINKEUR"]
 
-# Das Menü dient nur noch dem Hinzufügen/Entfernen, nicht mehr der Sortierung
 auswahl = st.sidebar.multiselect(
     "Währungen an/aus (Sortierung machst du rechts!):", 
     options=alle_kraken_coins, 
     default=st.session_state.meine_coins
 )
 
-# Sortierung synchronisieren (Neue ans Ende, gelöschte raus)
 neue_liste = [c for c in st.session_state.meine_coins if c in auswahl]
 for c in auswahl:
     if c not in neue_liste:
@@ -79,7 +110,6 @@ st.markdown("---")
 for i, coin in enumerate(st.session_state.meine_coins):
     anzeige_name = COIN_NAMEN.get(coin, "Altcoin")
     
-    # Die neuen Sortier-Knöpfe direkt in der Kopfzeile der Währung
     col_t1, col_t2, col_t3 = st.columns([6, 1, 1])
     with col_t1:
         st.markdown(f"### {coin} ({anzeige_name})")
@@ -110,7 +140,7 @@ for i, coin in enumerate(st.session_state.meine_coins):
     status = "🟢 NEUTRAL (Abwarten - Finger weg)"
     if preis > sma and (45 <= rsi <= 65) and vol >= 2.0: status = "🔥 KAUF-ZONE (Einstieg prüfen)"
     elif rsi >= 75: status = "⚠️ VERKAUF (Markt überhitzt)"
-    elif preis < sma: status = "🩸 VERKAUF (Trendbruch)"
+    elif preis < sma: status = "🩸 VERKAUF (Trendbruch unter rote Linie)"
 
     if rsi >= 75: rsi_ampel = "🔴"
     elif rsi >= 65: rsi_ampel = "🟡"
@@ -163,10 +193,8 @@ for i, coin in enumerate(st.session_state.meine_coins):
             height=200,
             hovermode="x unified"
         )
-        # Hier schalten wir das englische Menü ('displayModeBar': False) ab
         st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False})
         
-        # Die permanente Anzeigetafel direkt unter dem Chart
-        st.caption("🔴 **Rote Linie: Makro-Trend (SMA 200)** ➔ Fällt der Kurs (Blau) darunter, ist das ein Trendbruch (Verkaufen / Hände weg!).")
+        st.caption("🔴 **Rote Linie: Makro-Trend (SMA 200)** ➔ Fällt der Kurs (Blau) darunter, ist das ein Trendbruch.")
 
     st.markdown("---")
