@@ -37,38 +37,46 @@ with st.expander("❓ HILFE & ERKLÄRUNG (Hier klicken, um alle Funktionen des R
     Das System nutzt 4-Stunden-Blöcke. Der Zeitstempel am unteren Rand des Diagramms zeigt immer den *Start* des 4-Stunden-Blocks an. Der **Preis** (die blaue Linie) ist jedoch exakt der Live-Preis dieser Sekunde!
     """)
 
-# Feste Vorgaben sortiert nach Relevanz (Marktmacht)
-KATEGORIEN = {
-    "💶 Top Euro-Paare": {
-        "XBTEUR": "Bitcoin", "ETHEUR": "Ethereum", "SOLEUR": "Solana", 
-        "ADAEUR": "Cardano", "DOTEUR": "Polkadot", "LINKEUR": "Chainlink",
-        "SUIEUR": "Sui", "FETEUR": "Fetch.ai", "ARBEUR": "Arbitrum", "PEPEEUR": "Pepe"
-    },
-    "💵 Top Dollar-Paare": {
-        "XBTUSD": "Bitcoin", "ETHUSD": "Ethereum", "SOLUSD": "Solana",
-        "ADAUSD": "Cardano", "DOTUSD": "Polkadot", "LINKUSD": "Chainlink",
-        "SUIUSD": "Sui", "FETUSD": "Fetch.ai", "ARBUSD": "Arbitrum", "PEPEUSD": "Pepe"
-    }
+# Klar definierte Namen für die wichtigsten Paare
+COIN_NAMEN = {
+    "XBTEUR": "Bitcoin (EUR)", "ETHEUR": "Ethereum (EUR)", "SOLEUR": "Solana (EUR)", 
+    "PEPEEUR": "Pepe (EUR)", "SUIEUR": "Sui (EUR)", "FETEUR": "Fetch.ai (EUR)", 
+    "ARBEUR": "Arbitrum (EUR)", "ADAEUR": "Cardano (EUR)", "DOTEUR": "Polkadot (EUR)", 
+    "LINKEUR": "Chainlink (EUR)",
+    "XBTUSD": "Bitcoin (USD)", "ETHUSD": "Ethereum (USD)", "SOLUSD": "Solana (USD)"
 }
+
+# Das Gedächtnis für deine Sortierung
+if 'meine_coins' not in st.session_state:
+    st.session_state.meine_coins = ["XBTEUR", "ETHEUR", "SOLEUR", "PEPEEUR", "SUIEUR", "FETEUR"]
 
 # ==========================================
 # ⚙️ SEITENLEISTE: BEDIENFELDER 
 # ==========================================
 st.sidebar.header("🎛️ Deine Einstellungen")
 
-# 1. Kategorie auswählen (Euro oder Dollar)
-gewaehlte_kategorie = st.sidebar.selectbox("Kategorie wählen:", list(KATEGORIEN.keys()))
-aktuelle_coin_liste = list(KATEGORIEN[gewaehlte_kategorie].keys())
-namen_mapping = KATEGORIEN[gewaehlte_kategorie]
+# Die perfekt sortierte Master-Liste für das Aufklapp-Menü
+alle_kraken_coins = [
+    # Die Schwergewichte in Euro ganz oben
+    "XBTEUR", "ETHEUR", "SOLEUR", "SUIEUR", "FETEUR", "PEPEEUR", "ARBEUR", "ADAEUR", "DOTEUR", "LINKEUR",
+    # Gefolgt von den Dollar-Paaren
+    "XBTUSD", "ETHUSD", "SOLUSD",
+    # Und weitere Coins, um die Liste lang zu machen (bei Bedarf beliebig erweiterbar)
+    "DOGEEUR", "XRPEUR", "LTCEUR", "BCHEUR", "XMREUR"
+]
 
-# 2. Voreingestellte Checkbox-Liste in exakter Reihenfolge
-st.sidebar.markdown("**Sichtbare Währungen:**")
-gewaehlte_coins = []
-for coin in aktuelle_coin_liste:
-    # Die Top 3 (Bitcoin, Ethereum, Solana) sind immer vorausgewählt, der Rest ist optional
-    standard_an = coin in [aktuelle_coin_liste[0], aktuelle_coin_liste[1], aktuelle_coin_liste[2]]
-    if st.sidebar.checkbox(f"{namen_mapping[coin]} ({coin})", value=standard_an):
-        gewaehlte_coins.append(coin)
+auswahl = st.sidebar.multiselect(
+    "Währungen suchen / auswählen (Tippen oder scrollen):", 
+    options=alle_kraken_coins, 
+    default=st.session_state.meine_coins
+)
+
+# Synchronisation: Neue Währungen ans Ende der Liste hängen, gelöschte entfernen
+neue_liste = [c for c in st.session_state.meine_coins if c in auswahl]
+for c in auswahl:
+    if c not in neue_liste:
+        neue_liste.append(c)
+st.session_state.meine_coins = neue_liste
 
 st.sidebar.markdown("---")
 st.sidebar.subheader("💰 Order-Rechner")
@@ -107,21 +115,9 @@ jetzt_string = datetime.now().strftime('%d.%m.%Y - %H:%M:%S')
 st.write(f"🔄 **Autopilot aktiv:** Die Seite aktualisiert sich automatisch alle 5 Minuten. (Letzter Scan: {jetzt_string} Uhr)")
 st.markdown("---")
 
-# Speicher für Sortierung aufbauen, wenn Kategorie gewechselt wurde
-if 'sortier_liste' not in st.session_state or st.session_state.get('letzte_kat') != gewaehlte_kategorie:
-    st.session_state.sortier_liste = gewaehlte_coins
-    st.session_state.letzte_kat = gewaehlte_kategorie
-else:
-    # Neue Checks hinzufügen, entfernte löschen
-    neue_sortierung = [c for c in st.session_state.sortier_liste if c in gewaehlte_coins]
-    for c in gewaehlte_coins:
-        if c not in neue_sortierung:
-            neue_sortierung.append(c)
-    st.session_state.sortier_liste = neue_sortierung
-
-for i, coin in enumerate(st.session_state.sortier_liste):
-    anzeige_name = namen_mapping.get(coin, "Altcoin")
-    w_symbol = "€" if "EUR" in coin else "$"
+for i, coin in enumerate(st.session_state.meine_coins):
+    anzeige_name = COIN_NAMEN.get(coin, "Altcoin")
+    w_symbol = "€" if "EUR" in coin else "$" if "USD" in coin else ""
     
     col_t1, col_t2, col_t3 = st.columns([6, 1, 1])
     with col_t1:
@@ -129,12 +125,12 @@ for i, coin in enumerate(st.session_state.sortier_liste):
     with col_t2:
         if i > 0:
             if st.button("⬆️ Hoch", key=f"up_{coin}"):
-                st.session_state.sortier_liste[i], st.session_state.sortier_liste[i-1] = st.session_state.sortier_liste[i-1], st.session_state.sortier_liste[i]
+                st.session_state.meine_coins[i], st.session_state.meine_coins[i-1] = st.session_state.meine_coins[i-1], st.session_state.meine_coins[i]
                 st.rerun()
     with col_t3:
-        if i < len(st.session_state.sortier_liste) - 1:
+        if i < len(st.session_state.meine_coins) - 1:
             if st.button("⬇️ Runter", key=f"down_{coin}"):
-                st.session_state.sortier_liste[i], st.session_state.sortier_liste[i+1] = st.session_state.sortier_liste[i+1], st.session_state.sortier_liste[i]
+                st.session_state.meine_coins[i], st.session_state.meine_coins[i+1] = st.session_state.meine_coins[i+1], st.session_state.meine_coins[i]
                 st.rerun()
     
     df_live = fetch_kraken_ohlcv(coin, interval=240)
@@ -165,7 +161,7 @@ for i, coin in enumerate(st.session_state.sortier_liste):
     col1, col2, col3 = st.columns([1, 1.5, 2])
     
     with col1:
-        st.metric(label="Live-Kurs auf Kraken", value=f"{preis:.{dezimalstellen}f} {w_symbol}")
+        st.metric(label=f"Live-Kurs auf Kraken", value=f"{preis:.{dezimalstellen}f} {w_symbol}")
         st.metric(label=f"RSI (Puls) {rsi_ampel}", value=f"{rsi:.1f}")
         st.info(f"**{status}**")
         st.caption(f"⚡ Live abgerechnet um: {datetime.now().strftime('%H:%M')} Uhr")
