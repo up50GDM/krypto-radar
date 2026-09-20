@@ -18,13 +18,11 @@ st.markdown('<meta http-equiv="refresh" content="300">', unsafe_allow_html=True)
 # ==========================================
 st.sidebar.header("⚙️ system-einstellungen")
 
-# 1. Börsen-Auswahl
 st.sidebar.selectbox("🏛️ krypto-börse (api):", ["kraken", "binance (in vorbereitung)", "coinbase (in vorbereitung)"])
 st.sidebar.caption("⚠️ kann nur geändert werden, wenn die api-schnittstelle aktiv ist.")
 
 st.sidebar.markdown("---")
 
-# 2. Lokale Zeitzone (Mit exakten Programmier-Namen, damit kein Fehler mehr auftritt)
 zeitzonen_optionen = {
     "deutschland (berlin / mez)": "Europe/Berlin",
     "england (london / gmt)": "Europe/London",
@@ -36,7 +34,6 @@ zeitzonen_optionen = {
 gewaehlte_tz_label = st.sidebar.selectbox("🌍 lokale zeitzone:", list(zeitzonen_optionen.keys()))
 aktuelle_zeitzone = ZoneInfo(zeitzonen_optionen[gewaehlte_tz_label])
 
-# 3. Fiat-Währung
 FIAT_SYMBOLE = {
     "EUR": "€", "USD": "$", "GBP": "£", "CHF": "chf", "CAD": "ca$", "AUD": "au$", "JPY": "¥"
 }
@@ -224,20 +221,21 @@ for i, basis_coin in enumerate(st.session_state.meine_basis_coins):
             ))
             
             letzter_zeitpunkt = df_live['timestamp'].iloc[-1]
-            zukunft = letzter_zeitpunkt + pd.Timedelta(hours=48)
+            zuniqueItemsrecht = letzter_zeitpunkt + pd.Timedelta(hours=48)
             start_ansicht = df_live['timestamp'].iloc[-100]
             
             fig.update_layout(
                 margin=dict(l=0, r=0, t=10, b=0),
                 plot_bgcolor='rgba(0,0,0,0)',
                 paper_bgcolor='rgba(0,0,0,0)',
-                xaxis=dict(range=[start_ansicht, zukunft], tickformat="%d.%m.", tickfont=dict(size=10, color='gray'), showgrid=False),
+                xaxis=dict(range=[start_ansicht, zuuniqueItemsrecht if 'zuniqueItemsrecht' in locals() else letzter_zeitpunkt + pd.Timedelta(hours=48)], tickformat="%d.%m.", tickfont=dict(size=10, color='gray'), showgrid=False),
                 yaxis=dict(tickfont=dict(size=10, color='gray'), showgrid=True, gridcolor='#333333'),
                 showlegend=False,
                 height=200,
                 hovermode="x unified"
             )
-            st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False})
+            # Fester Schlüssel (key) verhindert den DOM-Fehler beim Auto-Refresh
+            st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False}, key=f"chart_{voller_coin_name}")
             st.caption("🔴 **rote linie: makro-trend (sma 200)** ➔ fällt der kurs darunter, droht ein trendbruch.")
 
     st.markdown("---")
