@@ -8,13 +8,29 @@ import warnings
 warnings.filterwarnings('ignore')
 
 # ==========================================
-# ⚙️ SEITEN-KONFIGURATION & ZEITZONE
+# ⚙️ SEITEN-KONFIGURATION & AUTO-REFRESH
 # ==========================================
 st.set_page_config(page_title="Steuerzentrale Radar", layout="wide")
 st.markdown('<meta http-equiv="refresh" content="300">', unsafe_allow_html=True)
 
-# Wir erzwingen die deutsche Zeitzone für alle Berechnungen
-MEZ = ZoneInfo("Europe/Berlin")
+# ==========================================
+# 🎛️ EINSTELLUNGEN (Globale Parameter)
+# ==========================================
+st.sidebar.header("⚙️ System-Einstellungen")
+
+# 1. Zeitzonen-Auswahl (Verändert sofort alle Zeiten im Code)
+zeitzonen_liste = ["Europe/Berlin (MEZ)", "Europe/London (GMT)", "America/New_York (EST)", "Asia/Tokyo (JST)", "UTC"]
+gewaehlte_zeitzone_str = st.sidebar.selectbox("🌍 Lokale Zeitzone:", zeitzonen_liste)
+aktuelle_zeitzone = ZoneInfo(gewaehlte_zeitzone_str.split(" ")[0])
+
+# 2. Börsen-Auswahl (Architektur vorbereitet für Skalierung)
+st.sidebar.selectbox("🏛️ Krypto-Börse (API):", ["Kraken", "Binance (In Vorbereitung)", "Coinbase (In Vorbereitung)"])
+
+# 3. Basis-Währung (Filtert die Auswahl-Listen später)
+basis_waehrung = st.sidebar.radio("💵 Bevorzugte Basis-Währung:", ["EUR (€)", "USD ($)"], horizontal=True)
+
+st.sidebar.markdown("---")
+st.sidebar.header("🎛️ Deine Watchlist")
 
 st.title("🚀 Krypto-Steuerzentrale | Live-Radar")
 
@@ -24,7 +40,7 @@ with st.expander("❓ HILFE & ERKLÄRUNG (Hier klicken, um alle Funktionen des R
     Dieses Dashboard filtert Marktrauschen durch nackte Mathematik.
 
     #### 1. Die Messgeräte
-    *   **Aktueller Kurs:** Live-Preis direkt von Kraken.
+    *   **Aktueller Kurs:** Live-Preis direkt von der Börse.
     *   **RSI (Der Puls):** 
         *   🟢 **45 bis 65:** Gesunde Zone (Perfekt für Einstiege).
         *   🟡 **65 bis 75:** Warnzone (Der Markt wird heiß).
@@ -64,18 +80,11 @@ COIN_NAMEN = {
 if 'meine_coins' not in st.session_state:
     st.session_state.meine_coins = ["XBTEUR", "ETHEUR", "SOLEUR", "PEPEEUR", "SUIEUR", "FETEUR"]
 
-# ==========================================
-# ⚙️ SEITENLEISTE: BEDIENFELDER 
-# ==========================================
-st.sidebar.header("🎛️ Deine Einstellungen")
-
 alle_kraken_coins = list(COIN_NAMEN.keys())
-
-def format_coin_label(coin_code):
-    return f"{coin_code} ➔ {COIN_NAMEN.get(coin_code, coin_code)}"
+def format_coin_label(coin_code): return f"{coin_code} ➔ {COIN_NAMEN.get(coin_code, coin_code)}"
 
 auswahl = st.sidebar.multiselect(
-    "Währungen suchen (Tippen oder scrollen):", 
+    "Währungen suchen (Tippen/Scrollen):", 
     options=alle_kraken_coins, 
     default=st.session_state.meine_coins,
     format_func=format_coin_label
@@ -83,8 +92,7 @@ auswahl = st.sidebar.multiselect(
 
 neue_liste = [c for c in st.session_state.meine_coins if c in auswahl]
 for c in auswahl:
-    if c not in neue_liste:
-        neue_liste.append(c)
+    if c not in neue_liste: neue_liste.append(c)
 st.session_state.meine_coins = neue_liste
 
 st.sidebar.markdown("---")
@@ -93,7 +101,7 @@ investition = st.sidebar.number_input("Geplante Kaufsumme", min_value=10, value=
 ziel_prozent = st.sidebar.number_input("Ziel-Gewinn Take-Profit (%)", min_value=1, max_value=1000, value=15, step=1)
 
 # ==========================================
-# MODUL 1: DATENBESCHAFFUNG MIT ZEITSTEMPEL
+# MODUL 1: DATENBESCHAFFUNG 
 # ==========================================
 @st.cache_data(ttl=240)
 def fetch_kraken_ohlcv(pair: str, interval: int = 240):
@@ -114,8 +122,8 @@ def fetch_kraken_ohlcv(pair: str, interval: int = 240):
         df['volume_ratio'] = df['volume'] / df['volume'].rolling(20).mean()
         df['sma_200'] = df['close'].rolling(200).mean()
         
-        # Der exakte Zeitstempel dieses Abrufs in deutscher Zeit
-        abruf_zeit = datetime.now(MEZ).strftime('%H:%M:%S')
+        # Zeitstempel mit der ausgewählten Zeitzone stempeln
+        abruf_zeit = datetime.now(aktuelle_zeitzone).strftime('%H:%M:%S')
         return df, abruf_zeit
     except:
         return None
@@ -123,8 +131,8 @@ def fetch_kraken_ohlcv(pair: str, interval: int = 240):
 # ==========================================
 # MODUL 2: DASHBOARD AUFBAU (Das Cockpit)
 # ==========================================
-jetzt_string = datetime.now(MEZ).strftime('%d.%m.%Y - %H:%M:%S')
-st.write(f"🔄 **Autopilot aktiv:** (Gesamtsystem zuletzt aktualisiert: {jetzt_string} Uhr)")
+jetzt_string = datetime.now(aktuelle_zeitzone).strftime('%d.%m.%Y - %H:%M:%S')
+st.write(f"🔄 **Autopilot aktiv:** (Gesamtsystem zuletzt aktualisiert: {jetzt_string})")
 st.markdown("---")
 
 for i, coin in enumerate(st.session_state.meine_coins):
@@ -138,9 +146,7 @@ for i, coin in enumerate(st.session_state.meine_coins):
         st.markdown("---")
         continue
 
-    # Das Paket entpacken: Daten und exakter Zeitstempel
     df_live, ping_zeit = daten_paket
-
     aktuelle_kerze = df_live.iloc[-1]
     preis = aktuelle_kerze['close']
     rsi = aktuelle_kerze['rsi']
@@ -161,9 +167,9 @@ for i, coin in enumerate(st.session_state.meine_coins):
     col_k1, col_k2, col_k3, col_k4, col_k5 = st.columns([3.5, 2, 2, 0.5, 0.5])
     
     with col_k1:
-        st.markdown(f"### {coin}\n**{anzeige_name}**<br><span style='font-size:14px; color:#888888;'>Ping: {ping_zeit} Uhr</span>", unsafe_allow_html=True)
+        st.markdown(f"### {coin}\n**{anzeige_name}**<br><span style='font-size:14px; color:#888888;'>Ping: {ping_zeit}</span>", unsafe_allow_html=True)
     with col_k2:
-        st.metric(label="Live-Kurs (Kraken)", value=f"{preis:.{dezimalstellen}f} {w_symbol}")
+        st.metric(label="Live-Kurs (Börse)", value=f"{preis:.{dezimalstellen}f} {w_symbol}")
     with col_k3:
         st.metric(label=f"RSI (Puls)", value=f"{rsi:.1f} {rsi_ampel}")
     with col_k4:
@@ -200,12 +206,12 @@ for i, coin in enumerate(st.session_state.meine_coins):
             fig.add_trace(go.Scatter(
                 x=df_live['timestamp'], y=df_live['close'], 
                 mode='lines', line=dict(color='#4da6ff', width=2), name='Kurs',
-                hovertemplate=f'<b>Kurs:</b> %{{y:.4f}} {w_symbol}<br><b>Block-Start:</b> %{{x|%d.%m. - %H:%M}} Uhr<extra></extra>'
+                hovertemplate=f'<b>Kurs:</b> %{{y:.4f}} {w_symbol}<br><b>Block-Start:</b> %{{x|%d.%m. - %H:%M}}<extra></extra>'
             ))
             fig.add_trace(go.Scatter(
                 x=df_live['timestamp'], y=df_live['sma_200'], 
                 mode='lines', line=dict(color='#ff4d4d', width=2, dash='dash'), name='SMA 200 (Trend)',
-                hovertemplate=f'<b>Trend-Grenze:</b> %{{y:.4f}} {w_symbol}<br><b>Block-Start:</b> %{{x|%d.%m. - %H:%M}} Uhr<extra></extra>'
+                hovertemplate=f'<b>Trend-Grenze:</b> %{{y:.4f}} {w_symbol}<br><b>Block-Start:</b> %{{x|%d.%m. - %H:%M}}<extra></extra>'
             ))
             
             letzter_zeitpunkt = df_live['timestamp'].iloc[-1]
