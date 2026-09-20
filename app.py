@@ -34,19 +34,32 @@ with st.expander("❓ HILFE & ERKLÄRUNG (Hier klicken, um alle Funktionen des R
     *   🩸 **VERKAUF (Trendbruch):** Kurs stürzt unter rote Linie. Reißleine ziehen!
 
     #### 3. Der Chart
-    Das System nutzt 4-Stunden-Blöcke. Der Zeitstempel am unteren Rand des Diagramms zeigt immer den *Start* des 4-Stunden-Blocks an. Der **Preis** (die blaue Linie) ist jedoch exakt der Live-Preis dieser Sekunde!
+    Das System nutzt 4-Stunden-Blöcke. Der Zeitstempel am unteren Rand zeigt den *Start* des 4-Stunden-Blocks an. Der **Preis** (blaue Linie) ist der Live-Preis dieser Sekunde!
     """)
 
-# Klar definierte Namen für die wichtigsten Paare
+# ==========================================
+# 🏆 RANGLISTE & NAMEN (Das neue Lexikon)
+# ==========================================
 COIN_NAMEN = {
-    "XBTEUR": "Bitcoin (EUR)", "ETHEUR": "Ethereum (EUR)", "SOLEUR": "Solana (EUR)", 
-    "PEPEEUR": "Pepe (EUR)", "SUIEUR": "Sui (EUR)", "FETEUR": "Fetch.ai (EUR)", 
-    "ARBEUR": "Arbitrum (EUR)", "ADAEUR": "Cardano (EUR)", "DOTEUR": "Polkadot (EUR)", 
-    "LINKEUR": "Chainlink (EUR)",
-    "XBTUSD": "Bitcoin (USD)", "ETHUSD": "Ethereum (USD)", "SOLUSD": "Solana (USD)"
+    "XBTEUR": "Bitcoin (EUR) - Platz 1", 
+    "ETHEUR": "Ethereum (EUR) - Platz 2", 
+    "SOLEUR": "Solana (EUR) - Platz 5", 
+    "ADAEUR": "Cardano (EUR) - Platz 10", 
+    "DOTEUR": "Polkadot (EUR) - Platz 15", 
+    "LINKEUR": "Chainlink (EUR) - Platz 16",
+    "BCHEUR": "Bitcoin Cash (EUR) - Platz 17",
+    "LTCEUR": "Litecoin (EUR) - Platz 21",
+    "PEPEEUR": "Pepe (EUR) - Platz 24", 
+    "SUIEUR": "Sui (EUR) - Platz 28", 
+    "FETEUR": "Fetch.ai (EUR) - Platz 33", 
+    "XMREUR": "Monero (EUR) - Platz 35",
+    "ARBEUR": "Arbitrum (EUR) - Platz 42", 
+    
+    "XBTUSD": "Bitcoin (USD) - Platz 1", 
+    "ETHUSD": "Ethereum (USD) - Platz 2", 
+    "SOLUSD": "Solana (USD) - Platz 5"
 }
 
-# Das Gedächtnis für deine Sortierung
 if 'meine_coins' not in st.session_state:
     st.session_state.meine_coins = ["XBTEUR", "ETHEUR", "SOLEUR", "PEPEEUR", "SUIEUR", "FETEUR"]
 
@@ -55,23 +68,20 @@ if 'meine_coins' not in st.session_state:
 # ==========================================
 st.sidebar.header("🎛️ Deine Einstellungen")
 
-# Die perfekt sortierte Master-Liste für das Aufklapp-Menü
-alle_kraken_coins = [
-    # Die Schwergewichte in Euro ganz oben
-    "XBTEUR", "ETHEUR", "SOLEUR", "SUIEUR", "FETEUR", "PEPEEUR", "ARBEUR", "ADAEUR", "DOTEUR", "LINKEUR",
-    # Gefolgt von den Dollar-Paaren
-    "XBTUSD", "ETHUSD", "SOLUSD",
-    # Und weitere Coins, um die Liste lang zu machen (bei Bedarf beliebig erweiterbar)
-    "DOGEEUR", "XRPEUR", "LTCEUR", "BCHEUR", "XMREUR"
-]
+# Die sortierte Liste für das Dropdown
+alle_kraken_coins = list(COIN_NAMEN.keys())
+
+# Formatierung für das Dropdown, damit die Platzierungen direkt beim Suchen sichtbar sind
+def format_coin_label(coin_code):
+    return f"{coin_code} ➔ {COIN_NAMEN.get(coin_code, coin_code)}"
 
 auswahl = st.sidebar.multiselect(
-    "Währungen suchen / auswählen (Tippen oder scrollen):", 
+    "Währungen suchen (Tippen oder scrollen):", 
     options=alle_kraken_coins, 
-    default=st.session_state.meine_coins
+    default=st.session_state.meine_coins,
+    format_func=format_coin_label
 )
 
-# Synchronisation: Neue Währungen ans Ende der Liste hängen, gelöschte entfernen
 neue_liste = [c for c in st.session_state.meine_coins if c in auswahl]
 for c in auswahl:
     if c not in neue_liste:
