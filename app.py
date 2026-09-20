@@ -56,7 +56,6 @@ def fetch_kraken_assets():
         for key, val in res['result'].items():
             altname = val['altname']
             if altname not in ['EUR', 'USD', 'GBP', 'CHF', 'CAD', 'AUD', 'JPY']:
-                # Wenn wir einen echten Namen haben, nimm den, sonst Krakens Altname
                 sauberer_name = ECHTE_NAMEN.get(key, ECHTE_NAMEN.get(altname, altname))
                 assets[key] = f"{key} ➔ {sauberer_name}"
         return assets
@@ -69,11 +68,16 @@ if 'meine_basis_coins' not in st.session_state:
     st.session_state.meine_basis_coins = ["SOL", "PEPE", "SUI", "FET", "ADA"]
 
 def get_clean_name(api_key):
-    """Liefert z.B. 'Ripple (XRP)' für saubere Anzeigen zurück"""
+    """Liefert z.B. 'Ripple (XRP)' oder nur '1INCH' ohne Doppelungen"""
     raw_name = ALLE_COINS_DICT.get(api_key, api_key)
     if " ➔ " in raw_name:
         parts = raw_name.split(" ➔ ")
-        return f"{parts[1]} ({parts[0].replace('XX', 'X')})"
+        kurzel = parts[0].replace('XX', 'X').replace('Z', '')
+        name = parts[1]
+        
+        if name.upper() == kurzel.upper():
+            return name
+        return f"{name} ({kurzel})"
     return api_key
 
 # ==========================================
@@ -97,10 +101,7 @@ def fetch_global_ticker(fiat):
                 if volumen_fiat >= 1000000 and o > 0:
                     pct = ((c - o) / o) * 100
                     base_asset = pair_name.replace(fiat, "").replace(f"Z{fiat}", "")
-                    
-                    # Echte Namen für den Ticker holen
                     display_name = ECHTE_NAMEN.get(base_asset, base_asset.replace('XX', 'X'))
-                    
                     valid_pairs.append({'name': display_name, 'pct': pct})
         
         valid_pairs.sort(key=lambda x: x['pct'], reverse=True)
@@ -257,10 +258,20 @@ def live_radar_cockpit():
         elif rsi >= 75: status = "🔴 VERKAUF (markt überhitzt)"
         elif preis < sma: status = "🔴 VERKAUF (trendbruch unter rote linie)"
 
-        rsi_ampel = "⚪"
-        if status.startswith("🟢"): rsi_ampel = "🟢"
-        elif rsi >= 75 or status.startswith("🔴"): rsi_ampel = "🔴"
-        elif rsi <= 45: rsi_ampel = "🧊" 
+        # Definition der Signal-Farben für die dynamische Box
+        if status.startswith("🟢"): 
+            rsi_ampel = "🟢"
+            rand_farbe = "#00cc66" # Strahlendes Grün
+            dca_icon = "🟢"
+        elif rsi >= 75 or status.startswith("🔴"): 
+            rsi_ampel = "🔴"
+            rand_farbe = "#ff4d4d" # Warnendes Rot
+            dca_icon = "🔴"
+        else: 
+            if rsi <= 45: rsi_ampel = "🧊" 
+            else: rsi_ampel = "⚪"
+            rand_farbe = "#555555" # Ruhiges Grau
+            dca_icon = "⚪"
         
         dezimalstellen = 6 if preis < 1.0 else 4
 
@@ -287,9 +298,9 @@ def live_radar_cockpit():
         is_open = st.checkbox(f"📊 Chart & Order-Rechner für {anzeige_name_sauber.split(' (')[0]} einblenden", key=f"chk_{basis_coin}")
 
         if is_open:
-            st.markdown("""<div style="border-left: 3px solid #4da6ff; padding-left: 15px; margin-bottom: 20px;">""", unsafe_allow_html=True)
+            st.markdown(f"""<div style="border-left: 3px solid {rand_farbe}; padding-left: 15px; margin-bottom: 20px;">""", unsafe_allow_html=True)
             
-            # 💼 PORTFOLIO & DCA-RECHNER
+            # 💼 PORTFOLIO & DYNAMISCHER DCA-RECHNER
             if basis_coin == st.session_state.port_coin and st.session_state.port_menge > 0:
                 st.success(f"💼 **Dein Bestand:** {st.session_state.port_menge} Stück (Kaufkurs: {st.session_state.port_kaufpreis} {w_symbol})")
                 
@@ -298,7 +309,6 @@ def live_radar_cockpit():
                 pnl = aktueller_wert - investiert
                 pnl_pct = (pnl / investiert) * 100 if investiert > 0 else 0
                 
-                # Der DCA IST/SOLL Rechner
                 zusatz_menge = st.session_state.investition / preis
                 neue_gesamtmenge = st.session_state.port_menge + zusatz_menge
                 neues_investment = investiert + st.session_state.investition
@@ -309,8 +319,15 @@ def live_radar_cockpit():
                 col_p2.metric("Gewinn / Verlust", f"{pnl:.2f} {w_symbol}", f"{pnl_pct:.2f}%")
                 col_p3.metric("🚨 Trailing-Stop (-3%)", f"{(preis * 0.97):.{dezimalstellen}f} {w_symbol}")
                 
-                st.info(f"🔄 **Nachkauf-Simulation (DCA):** Wenn du jetzt {st.session_state.investition} {w_symbol} nachkaufst, sinkt dein Durchschnitts-Kaufpreis von **{st.session_state.port_kaufpreis} {w_symbol}** auf **{neuer_durchschnitt:.{dezimalstellen}f} {w_symbol}**.")
-                st.markdown("---")
+                # Die neue dunkle Info-Box mit Signal-Rahmen
+                dca_html = f"""
+                <div style="background-color: #1a1a1a; border: 2px solid {rand_farbe}; border-radius: 8px; padding: 15px; margin-bottom: 20px;">
+                    <span style="font-size: 15px; color: #e0e0e0; line-height: 1.5;">
+                        {dca_icon} <b>Nachkauf-Simulation (DCA):</b> Wenn du jetzt {st.session_state.investition:.2f} {w_symbol} investierst, sinkt dein Durchschnitts-Kaufpreis von <b>{st.session_state.port_kaufpreis:.4f} {w_symbol}</b> auf <b>{neuer_durchschnitt:.4f} {w_symbol}</b>.
+                    </span>
+                </div>
+                """
+                st.markdown(dca_html, unsafe_allow_html=True)
 
             col_d1, col_d2 = st.columns([1, 2])
             
