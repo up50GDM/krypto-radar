@@ -3,46 +3,24 @@ import requests
 import pandas as pd
 import plotly.graph_objects as go
 from datetime import datetime
+import warnings
+warnings.filterwarnings('ignore')
 
 # ==========================================
 # ⚙️ SEITEN-KONFIGURATION & AUTO-REFRESH
 # ==========================================
 st.set_page_config(page_title="Steuerzentrale Radar", layout="wide")
-
-# Unsichtbarer Herzschlag: Die Seite lädt sich alle 5 Minuten (300 Sekunden) automatisch neu
 st.markdown('<meta http-equiv="refresh" content="300">', unsafe_allow_html=True)
 
-# ==========================================
-# 🔒 SICHERHEITS-SCHLEUSE (Passwort-Schutz)
-# ==========================================
-if 'authentifiziert' not in st.session_state:
-    st.session_state.authentifiziert = False
-
-if not st.session_state.authentifiziert:
-    st.title("🔒 System gesperrt")
-    st.markdown("Diese Steuerzentrale ist privat. Bitte authentifizieren.")
-    passwort = st.text_input("Sicherheitsschlüssel:", type="password")
-    
-    # HIER kannst du dein Passwort ändern (aktuell: Radar2026)
-    if passwort == "Radar2026": 
-        st.session_state.authentifiziert = True
-        st.rerun()
-    elif passwort != "":
-        st.error("Zugriff verweigert.")
-    st.stop() # Stoppt hier, bis das Passwort stimmt
-
-# ==========================================
-# 🚀 HAUPT-APP (Wird nur nach Login geladen)
-# ==========================================
 st.title("🚀 Krypto-Steuerzentrale | Live-Radar")
 
 with st.expander("❓ HILFE & ERKLÄRUNG (Hier klicken, um alle Funktionen des Radars zu verstehen)"):
     st.markdown("""
     ### 🧭 System-Handbuch: So liest du das Radar
-    Dieses Dashboard ist ein rationales Messinstrument. Es filtert Marktrauschen durch nackte Mathematik.
+    Dieses Dashboard filtert Marktrauschen durch nackte Mathematik.
 
     #### 1. Die Messgeräte
-    *   **Aktueller Kurs:** Der echte Live-Preis direkt von Kraken.
+    *   **Aktueller Kurs:** Live-Preis direkt von Kraken.
     *   **RSI (Der Puls):** 
         *   🟢 **45 bis 65:** Gesunde Zone (Perfekt für Einstiege).
         *   🟡 **65 bis 75:** Warnzone (Der Markt wird heiß).
@@ -55,8 +33,8 @@ with st.expander("❓ HILFE & ERKLÄRUNG (Hier klicken, um alle Funktionen des R
     *   ⚠️ **VERKAUF (Überhitzt):** RSI über 75. Gewinnsicherung prüfen.
     *   🩸 **VERKAUF (Trendbruch):** Kurs stürzt unter rote Linie. Reißleine ziehen!
 
-    #### 3. Der Chart (Warum die Zeit manchmal in der Vergangenheit liegt)
-    Das System nutzt massive 4-Stunden-Blöcke, um kleine Störsignale herauszufiltern. Der Zeitstempel im Diagramm zeigt immer den *Start* des aktuellen 4-Stunden-Blocks an (z.B. 08:00 Uhr). Der **Preis** am Ende der Linie ist jedoch exakt der Live-Preis dieser Sekunde!
+    #### 3. Der Chart
+    Das System nutzt 4-Stunden-Blöcke. Der Zeitstempel am unteren Rand des Diagramms zeigt immer den *Start* des 4-Stunden-Blocks an. Der **Preis** (die blaue Linie) ist jedoch exakt der Live-Preis dieser Sekunde!
     """)
 
 COIN_NAMEN = {
@@ -68,7 +46,7 @@ if 'meine_coins' not in st.session_state:
     st.session_state.meine_coins = ["XBTEUR", "ETHEUR", "SOLEUR", "PEPEEUR", "SUIEUR", "FETEUR", "ARBEUR"]
 
 # ==========================================
-# ⚙️ SEITENLEISTE: BEDIENFELDER
+# ⚙️ SEITENLEISTE: BEDIENFELDER (Mit neuen Eingabefeldern)
 # ==========================================
 st.sidebar.header("🎛️ Deine Einstellungen")
 
@@ -83,13 +61,28 @@ st.session_state.meine_coins = neue_liste
 
 st.sidebar.markdown("---")
 st.sidebar.subheader("💰 Order-Rechner")
-investition = st.sidebar.slider("Geplante Kaufsumme (€)", min_value=50, max_value=5000, value=500, step=50)
-ziel_prozent = st.sidebar.slider("Ziel-Gewinn Take-Profit (%)", min_value=1, max_value=100, value=15, step=1)
+
+# Das neue ergonomische Zahlenfeld (ohne Max-Limit, mit +/- Tasten in 50er Schritten)
+investition = st.sidebar.number_input(
+    "Geplante Kaufsumme (€) [Tippen oder +/-]", 
+    min_value=10, 
+    value=500, 
+    step=50
+)
+
+# Auch beim Prozent-Wert umgestellt auf direkte Eingabe
+ziel_prozent = st.sidebar.number_input(
+    "Ziel-Gewinn Take-Profit (%) [Tippen oder +/-]", 
+    min_value=1, 
+    max_value=1000, 
+    value=15, 
+    step=1
+)
 
 # ==========================================
 # MODUL 1: DATENBESCHAFFUNG
 # ==========================================
-@st.cache_data(ttl=240) # Daten-Cache auf 4 Minuten gestellt
+@st.cache_data(ttl=240)
 def fetch_kraken_ohlcv(pair: str, interval: int = 240):
     url = "https://api.kraken.com/0/public/OHLC"
     try:
@@ -195,10 +188,9 @@ for i, coin in enumerate(st.session_state.meine_coins):
             hovertemplate='<b>Trend-Grenze:</b> %{y:.4f} €<br><b>Block-Start:</b> %{x|%d.%m. - %H:%M} Uhr<extra></extra>'
         ))
         
-        # Berechnung für den optischen Freiraum nach rechts (ca. 48 Stunden in die Zukunft)
         letzter_zeitpunkt = df_live['timestamp'].iloc[-1]
         zukunft = letzter_zeitpunkt + pd.Timedelta(hours=48)
-        start_ansicht = df_live['timestamp'].iloc[-100] # Zeigt die letzten 100 Kerzen für perfekten Zoom
+        start_ansicht = df_live['timestamp'].iloc[-100]
         
         fig.update_layout(
             margin=dict(l=0, r=0, t=10, b=0),
