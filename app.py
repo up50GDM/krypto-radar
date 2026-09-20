@@ -26,24 +26,18 @@ if 'port_menge' not in st.session_state: st.session_state.port_menge = 0.0
 if 'port_kaufpreis' not in st.session_state: st.session_state.port_kaufpreis = 0.0
 
 # ==========================================
-# DAS REINE LEXIKON (Überschreibt Krakens faule Namen)
+# DAS REINE LEXIKON 
 # ==========================================
 ECHTE_NAMEN = {
     "XBT": "Bitcoin", "XXBT": "Bitcoin", 
     "ETH": "Ethereum", "XETH": "Ethereum",
     "XRP": "Ripple", "XXRP": "Ripple",
-    "SOL": "Solana", 
-    "ADA": "Cardano", 
+    "SOL": "Solana", "ADA": "Cardano", 
     "DOGE": "Dogecoin", "XDG": "Dogecoin",
-    "DOT": "Polkadot", 
-    "LINK": "Chainlink",
-    "BCH": "Bitcoin Cash",
-    "LTC": "Litecoin", "XLTC": "Litecoin",
-    "PEPE": "Pepe", 
-    "SUI": "Sui", 
-    "FET": "Fetch.ai", 
-    "XMR": "Monero", "XXMR": "Monero",
-    "ARB": "Arbitrum"
+    "DOT": "Polkadot", "LINK": "Chainlink",
+    "BCH": "Bitcoin Cash", "LTC": "Litecoin", "XLTC": "Litecoin",
+    "PEPE": "Pepe", "SUI": "Sui", "FET": "Fetch.ai", 
+    "XMR": "Monero", "XXMR": "Monero", "ARB": "Arbitrum"
 }
 
 # ==========================================
@@ -69,20 +63,18 @@ if 'meine_basis_coins' not in st.session_state:
     st.session_state.meine_basis_coins = ["SOL", "PEPE", "SUI", "FET", "ADA"]
 
 def get_clean_name(api_key):
-    """Liefert z.B. 'Ripple (XRP)' oder nur '1INCH' ohne Doppelungen"""
     raw_name = ALLE_COINS_DICT.get(api_key, api_key)
     if " ➔ " in raw_name:
         parts = raw_name.split(" ➔ ")
         kurzel = parts[0].replace('XX', 'X').replace('Z', '')
         name = parts[1]
-        
         if name.upper() == kurzel.upper():
             return name
         return f"{name} ({kurzel})"
     return api_key
 
 # ==========================================
-# TICKER (Mit 1-Million-Volumen-Rauschfilter & Echten Namen)
+# TICKER (Live Rauschfilter)
 # ==========================================
 @st.cache_data(ttl=300)
 def fetch_global_ticker(fiat):
@@ -96,7 +88,6 @@ def fetch_global_ticker(fiat):
                 c = float(data['c'][0]) 
                 o = float(data['o'])    
                 v = float(data['v'][1]) 
-                
                 volumen_fiat = c * v 
                 
                 if volumen_fiat >= 1000000 and o > 0:
@@ -111,12 +102,9 @@ def fetch_global_ticker(fiat):
         flop_10.sort(key=lambda x: x['pct']) 
         
         ticker_items = ["🔥 TOP 10 GEWINNER:"]
-        for item in top_10:
-            ticker_items.append(f"🟢 {item['name']}: +{item['pct']:.2f}%")
-            
+        for item in top_10: ticker_items.append(f"🟢 {item['name']}: +{item['pct']:.2f}%")
         ticker_items.append("  |  🩸 TOP 10 VERLIERER:")
-        for item in flop_10:
-            ticker_items.append(f"🔴 {item['name']}: {item['pct']:.2f}%")
+        for item in flop_10: ticker_items.append(f"🔴 {item['name']}: {item['pct']:.2f}%")
             
         return " &nbsp;&nbsp;&nbsp;&nbsp; ".join(ticker_items)
     except: return "Ticker Offline"
@@ -196,17 +184,14 @@ with st.expander("🌍 weltuhren & börsen-öffnungszeiten (Wann kommt das groß
     col_u3.metric("🥨 Berlin/Zürich", f"{datetime.now(ZoneInfo('Europe/Berlin')).strftime('%H:%M')} Uhr")
     col_u4.metric("🗼 Tokyo (TSE)", f"{datetime.now(ZoneInfo('Asia/Tokyo')).strftime('%H:%M')} Uhr")
 
-# MASTER CHECKBOX-SCHALTER
 col_m1, col_m2 = st.columns([2, 5])
 with col_m1:
     if st.button("☑️ Alle aufklappen"):
-        for c in st.session_state.meine_basis_coins:
-            st.session_state[f"chk_{c}"] = True
+        for c in st.session_state.meine_basis_coins: st.session_state[f"chk_{c}"] = True
         st.rerun()
 with col_m2:
     if st.button("🔲 Alle zuklappen"):
-        for c in st.session_state.meine_basis_coins:
-            st.session_state[f"chk_{c}"] = False
+        for c in st.session_state.meine_basis_coins: st.session_state[f"chk_{c}"] = False
         st.rerun()
 
 # ==========================================
@@ -224,10 +209,8 @@ def live_radar_cockpit():
         try:
             url = "https://api.kraken.com/0/public/OHLC"
             response = requests.get(url, params={'pair': pair_request, 'interval': 240}).json()
-            
             if len(response.get('error', [])) > 0:
-                pair_request_z = f"{basis_coin}Z{st.session_state.fiat_wahl}"
-                response = requests.get(url, params={'pair': pair_request_z, 'interval': 240}).json()
+                response = requests.get(url, params={'pair': f"{basis_coin}Z{st.session_state.fiat_wahl}", 'interval': 240}).json()
                 if len(response.get('error', [])) > 0:
                     alt_base = basis_coin[1:] if basis_coin.startswith('X') or basis_coin.startswith('Z') else basis_coin
                     response = requests.get(url, params={'pair': f"{alt_base}{st.session_state.fiat_wahl}", 'interval': 240}).json()
@@ -239,9 +222,7 @@ def live_radar_cockpit():
             numeric_cols = ['open', 'high', 'low', 'close', 'volume']
             df_live[numeric_cols] = df_live[numeric_cols].apply(pd.to_numeric, errors='coerce')
             
-            # Volatilität berechnen (Schwankungsbreite der Kerze in Prozent)
             df_live['amplitude'] = (df_live['high'] - df_live['low']) / df_live['low'] * 100
-            
             delta = df_live['close'].diff()
             gain = delta.clip(lower=0).ewm(alpha=1/14, min_periods=14).mean()
             loss = (-delta.clip(upper=0)).ewm(alpha=1/14, min_periods=14).mean()
@@ -249,7 +230,6 @@ def live_radar_cockpit():
             df_live['volume_ratio'] = df_live['volume'] / df_live['volume'].rolling(20).mean()
             df_live['sma_200'] = df_live['close'].rolling(200).mean()
             ping_zeit = datetime.now(aktuelle_zeitzone).strftime('%H:%M:%S')
-
         except: continue
 
         aktuelle_kerze = df_live.iloc[-1]
@@ -257,8 +237,6 @@ def live_radar_cockpit():
         rsi = aktuelle_kerze['rsi']
         sma = aktuelle_kerze['sma_200']
         vol = aktuelle_kerze['volume_ratio']
-        
-        # Durchschnittliche Schwankung der letzten 14 Kerzen (4h Intervalle)
         volatilitaet_14 = df_live['amplitude'].tail(14).mean()
 
         status = "⚪ neutral (abwarten / halten)"
@@ -267,22 +245,16 @@ def live_radar_cockpit():
         elif preis < sma: status = "🔴 VERKAUF (trendbruch unter rote linie)"
 
         if status.startswith("🟢"): 
-            rsi_ampel = "🟢"
-            rand_farbe = "#00cc66" 
-            dca_icon = "🟢"
+            rsi_ampel, rand_farbe, dca_icon = "🟢", "#00cc66", "🟢"
         elif rsi >= 75 or status.startswith("🔴"): 
-            rsi_ampel = "🔴"
-            rand_farbe = "#ff4d4d" 
-            dca_icon = "🔴"
+            rsi_ampel, rand_farbe, dca_icon = "🔴", "#ff4d4d", "🔴"
         else: 
-            if rsi <= 45: rsi_ampel = "🧊" 
-            else: rsi_ampel = "⚪"
-            rand_farbe = "#555555" 
-            dca_icon = "⚪"
+            rsi_ampel = "🧊" if rsi <= 45 else "⚪"
+            rand_farbe, dca_icon = "#555555", "⚪"
         
         dezimalstellen = 6 if preis < 1.0 else 4
 
-        col_k1, col_k2, col_k3, col_k4, col_k5 = st.columns([3.5, 2, 2, 0.5, 0.5])
+        col_k1, col_k2, col_k3, col_k4 = st.columns([2.5, 2, 1.5, 3])
         
         with col_k1:
             st.markdown(f"### {anzeige_name_sauber}<br><span style='font-size:14px; color:#888888;'>ping: {ping_zeit}</span>", unsafe_allow_html=True)
@@ -290,16 +262,38 @@ def live_radar_cockpit():
             st.metric(label=f"live-kurs ({st.session_state.fiat_wahl})", value=f"{preis:.{dezimalstellen}f} {w_symbol}")
         with col_k3:
             st.metric(label=f"rsi (puls)", value=f"{rsi:.1f} {rsi_ampel}")
+        
+        # DER NEUE TELEPORT-BLOCK (Alle Funktionen ergonomisch vereint)
         with col_k4:
-            st.markdown("<br>", unsafe_allow_html=True) 
-            if i > 0 and st.button("⬆️", key=f"up_{basis_coin}"):
-                st.session_state.meine_basis_coins[i], st.session_state.meine_basis_coins[i-1] = st.session_state.meine_basis_coins[i-1], st.session_state.meine_basis_coins[i]
-                st.rerun()
-        with col_k5:
             st.markdown("<br>", unsafe_allow_html=True)
-            if i < len(st.session_state.meine_basis_coins) - 1 and st.button("⬇️", key=f"down_{basis_coin}"):
-                st.session_state.meine_basis_coins[i], st.session_state.meine_basis_coins[i+1] = st.session_state.meine_basis_coins[i+1], st.session_state.meine_basis_coins[i]
-                st.rerun()
+            nav_col1, nav_col2, nav_col3, nav_col4 = st.columns([1, 1, 1, 2])
+            
+            with nav_col1:
+                if i > 0 and st.button("🔝", key=f"top_{basis_coin}", help="Sofort auf Platz 1 teleportieren"):
+                    st.session_state.meine_basis_coins.remove(basis_coin)
+                    st.session_state.meine_basis_coins.insert(0, basis_coin)
+                    st.rerun()
+            with nav_col2:
+                if i > 0 and st.button("⬆️", key=f"up_{basis_coin}"):
+                    st.session_state.meine_basis_coins[i], st.session_state.meine_basis_coins[i-1] = st.session_state.meine_basis_coins[i-1], st.session_state.meine_basis_coins[i]
+                    st.rerun()
+            with nav_col3:
+                if i < len(st.session_state.meine_basis_coins) - 1 and st.button("⬇️", key=f"down_{basis_coin}"):
+                    st.session_state.meine_basis_coins[i], st.session_state.meine_basis_coins[i+1] = st.session_state.meine_basis_coins[i+1], st.session_state.meine_basis_coins[i]
+                    st.rerun()
+            with nav_col4:
+                neu_platz = st.selectbox(
+                    "Platz", 
+                    options=range(1, len(st.session_state.meine_basis_coins) + 1), 
+                    index=i, 
+                    key=f"sel_pos_{basis_coin}", 
+                    label_visibility="collapsed",
+                    help="Exakten Platz wählen"
+                )
+                if (neu_platz - 1) != i:
+                    st.session_state.meine_basis_coins.remove(basis_coin)
+                    st.session_state.meine_basis_coins.insert(neu_platz - 1, basis_coin)
+                    st.rerun()
 
         if f"chk_{basis_coin}" not in st.session_state: st.session_state[f"chk_{basis_coin}"] = False
         is_open = st.checkbox(f"📊 Chart & Risikomanagement für {anzeige_name_sauber.split(' (')[0]} einblenden", key=f"chk_{basis_coin}")
@@ -307,21 +301,16 @@ def live_radar_cockpit():
         if is_open:
             st.markdown(f"""<div style="border-left: 3px solid {rand_farbe}; padding-left: 15px; margin-bottom: 20px;">""", unsafe_allow_html=True)
             
-            # 💼 PORTFOLIO & DYNAMISCHER DCA-RECHNER
             if basis_coin == st.session_state.port_coin and st.session_state.port_menge > 0:
                 st.success(f"💼 **Dein Bestand:** {st.session_state.port_menge} Stück (Kaufkurs: {st.session_state.port_kaufpreis} {w_symbol})")
-                
                 aktueller_wert = st.session_state.port_menge * preis
                 investiert = st.session_state.port_menge * st.session_state.port_kaufpreis
                 pnl = aktueller_wert - investiert
                 pnl_pct = (pnl / investiert) * 100 if investiert > 0 else 0
-                
                 zusatz_menge = st.session_state.investition / preis
                 neue_gesamtmenge = st.session_state.port_menge + zusatz_menge
                 neues_investment = investiert + st.session_state.investition
                 neuer_durchschnitt = neues_investment / neue_gesamtmenge if neue_gesamtmenge > 0 else 0
-                
-                # Der Trailing Stop wird flexibel berechnet
                 trailing_stop = preis * (1 - (st.session_state.stop_prozent / 100))
                 
                 col_p1, col_p2, col_p3 = st.columns(3)
@@ -329,23 +318,14 @@ def live_radar_cockpit():
                 col_p2.metric("Gewinn / Verlust", f"{pnl:.2f} {w_symbol}", f"{pnl_pct:.2f}%")
                 col_p3.metric(f"🚨 Trailing-Stop (-{st.session_state.stop_prozent}%)", f"{trailing_stop:.{dezimalstellen}f} {w_symbol}")
                 
-                dca_html = f"""
-                <div style="background-color: #1a1a1a; border: 2px solid {rand_farbe}; border-radius: 8px; padding: 15px; margin-bottom: 20px;">
-                    <span style="font-size: 15px; color: #e0e0e0; line-height: 1.5;">
-                        {dca_icon} <b>Nachkauf-Simulation (DCA):</b> Wenn du jetzt {st.session_state.investition:.2f} {w_symbol} investierst, sinkt dein Durchschnitts-Kaufpreis von <b>{st.session_state.port_kaufpreis:.4f} {w_symbol}</b> auf <b>{neuer_durchschnitt:.4f} {w_symbol}</b>.
-                    </span>
-                </div>
-                """
+                dca_html = f"""<div style="background-color: #1a1a1a; border: 2px solid {rand_farbe}; border-radius: 8px; padding: 15px; margin-bottom: 20px;"><span style="font-size: 15px; color: #e0e0e0; line-height: 1.5;">{dca_icon} <b>Nachkauf-Simulation (DCA):</b> Wenn du jetzt {st.session_state.investition:.2f} {w_symbol} investierst, sinkt dein Durchschnitts-Kaufpreis von <b>{st.session_state.port_kaufpreis:.4f} {w_symbol}</b> auf <b>{neuer_durchschnitt:.4f} {w_symbol}</b>.</span></div>"""
                 st.markdown(dca_html, unsafe_allow_html=True)
 
             col_d1, col_d2 = st.columns([1, 2])
-            
             with col_d1:
                 st.info(f"**signal: {status}**")
                 st.markdown(f"**order-rechner (Neu-Einstieg für {st.session_state.investition} {w_symbol}):**")
                 coins_gekauft = st.session_state.investition / preis
-                
-                # Flexible Order Stop und Ziel
                 limit_stop_preis = preis * (1 - (st.session_state.stop_prozent / 100))
                 verlust = st.session_state.investition - (coins_gekauft * limit_stop_preis)
                 ziel_preis = preis * (1 + (st.session_state.ziel_prozent / 100))
@@ -356,7 +336,6 @@ def live_radar_cockpit():
                 st.markdown(f"- 🎯 **ziel (+{st.session_state.ziel_prozent}%):** limit bei **{ziel_preis:.{dezimalstellen}f} {w_symbol}** (+{gewinn:.2f} {w_symbol})")
                 st.markdown("<br>", unsafe_allow_html=True)
                 
-                # Der Top 1% Risiko-Berater
                 if st.session_state.stop_prozent <= volatilitaet_14:
                     st.warning(f"⚠️ **Volatilitäts-Warnung:** {anzeige_name_sauber.split(' (')[0]} schwankt aktuell im Schnitt um **{volatilitaet_14:.1f}%**. Dein Stop ({st.session_state.stop_prozent}%) ist zu eng.")
                 else:
@@ -373,11 +352,7 @@ def live_radar_cockpit():
                 fig.add_trace(go.Scatter(x=kauf_signale['timestamp'], y=kauf_signale['close'], mode='markers', marker=dict(color='green', size=10, symbol='triangle-up'), name='Kauf-Signal'))
                 fig.add_trace(go.Scatter(x=verkauf_signale['timestamp'], y=verkauf_signale['close'], mode='markers', marker=dict(color='red', size=8, symbol='x'), name='Verkauf-Signal'))
                 
-                fig.update_layout(
-                    margin=dict(l=0, r=0, t=10, b=0), plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)',
-                    xaxis=dict(range=[df_live['timestamp'].iloc[-100], df_live['timestamp'].iloc[-1] + pd.Timedelta(hours=48)], showgrid=False),
-                    yaxis=dict(showgrid=True, gridcolor='#333333'), showlegend=False, height=200, hovermode="x unified"
-                )
+                fig.update_layout(margin=dict(l=0, r=0, t=10, b=0), plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)', xaxis=dict(range=[df_live['timestamp'].iloc[-100], df_live['timestamp'].iloc[-1] + pd.Timedelta(hours=48)], showgrid=False), yaxis=dict(showgrid=True, gridcolor='#333333'), showlegend=False, height=200, hovermode="x unified")
                 st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False}, key=f"chart_{basis_coin}")
                 st.caption("🟢 **Grünes Dreieck:** Kauf-Signal | ❌ **Rotes X:** Verkaufs-Signal / Trendbruch")
             
