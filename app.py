@@ -10,71 +10,70 @@ warnings.filterwarnings('ignore')
 # ==========================================
 # ⚙️ SEITEN-KONFIGURATION & AUTO-REFRESH
 # ==========================================
-st.set_page_config(page_title="Steuerzentrale Radar", layout="wide")
+st.set_page_config(page_title="steuerzentrale radar", layout="wide")
 st.markdown('<meta http-equiv="refresh" content="300">', unsafe_allow_html=True)
 
 # ==========================================
 # 🎛️ EINSTELLUNGEN (Globale Parameter)
 # ==========================================
-st.sidebar.header("⚙️ System-Einstellungen")
+st.sidebar.header("⚙️ system-einstellungen")
 
-zeitzonen_liste = ["Europe/Berlin (MEZ)", "Europe/London (GMT)", "Europe/Zurich (CET)", "America/New_York (EST)", "Asia/Tokyo (JST)", "UTC"]
-gewaehlte_zeitzone_str = st.sidebar.selectbox("🌍 Lokale Zeitzone:", zeitzonen_liste)
-aktuelle_zeitzone = ZoneInfo(gewaehlte_zeitzone_str.split(" ")[0])
-
-st.sidebar.selectbox("🏛️ Krypto-Börse (API):", ["Kraken", "Binance (In Vorbereitung)", "Coinbase (In Vorbereitung)"])
-
-# Das neue weltweite Fiat-Währungs-Menü
-FIAT_SYMBOLE = {
-    "EUR": "€", 
-    "USD": "$", 
-    "GBP": "£", 
-    "CHF": "CHF", 
-    "CAD": "CA$", 
-    "AUD": "AU$", 
-    "JPY": "¥"
-}
-basis_waehrung = st.sidebar.selectbox("💵 Bevorzugte Fiat-Währung:", list(FIAT_SYMBOLE.keys()))
+# 1. Börsen-Auswahl nach ganz oben mit Schutz-Hinweis
+st.sidebar.selectbox("🏛️ krypto-börse (api):", ["kraken", "binance (in vorbereitung)", "coinbase (in vorbereitung)"])
+st.sidebar.caption("⚠️ kann nur geändert werden, wenn die api-schnittstelle aktiv ist.")
 
 st.sidebar.markdown("---")
-st.sidebar.header("🎛️ Deine Watchlist")
 
-st.title("🚀 Krypto-Steuerzentrale | Live-Radar")
+# 2. Lokale Zeitzone
+zeitzonen_liste = ["europe/berlin (mez)", "europe/london (gmt)", "europe/zurich (cet)", "america/new_york (est)", "asia/tokyo (jst)", "utc"]
+gewaehlte_zeitzone_str = st.sidebar.selectbox("🌍 lokale zeitzone:", zeitzonen_liste)
+aktuelle_zeitzone = ZoneInfo(gewaehlte_zeitzone_str.split(" ")[0])
 
-with st.expander("❓ HILFE & ERKLÄRUNG (Hier klicken, um alle Funktionen des Radars zu verstehen)"):
+# 3. Fiat-Währung
+FIAT_SYMBOLE = {
+    "EUR": "€", "USD": "$", "GBP": "£", "CHF": "chf", "CAD": "ca$", "AUD": "au$", "JPY": "¥"
+}
+basis_waehrung = st.sidebar.selectbox("💵 bevorzugte fiat-währung:", list(FIAT_SYMBOLE.keys()))
+
+st.sidebar.markdown("---")
+st.sidebar.header("🎛️ deine watchlist")
+
+st.title("🚀 krypto-steuerzentrale | live-radar")
+
+with st.expander("❓ hilfe & erklärung (hier klicken, um alle funktionen zu verstehen)"):
     st.markdown("""
-    ### 🧭 System-Handbuch: So liest du das Radar
-    Dieses Dashboard filtert Marktrauschen durch nackte Mathematik.
+    ### 🧭 system-handbuch: so liest du das radar
+    dieses dashboard filtert marktrauschen durch nackte mathematik.
 
-    #### 1. Die Messgeräte
-    *   **Aktueller Kurs:** Live-Preis direkt von der Börse.
-    *   **RSI (Der Puls):** 
-        *   🟢 **45 bis 65:** Gesunde Zone (Perfekt für Einstiege).
-        *   🟡 **65 bis 75:** Warnzone (Der Markt wird heiß).
-        *   🔴 **Ab 75:** Gefahr! (Überhitzung, Absturz wahrscheinlich).
-    *   **SMA 200 (Rote Linie):** Die harte Grenze zwischen Aufwärts- und Abwärtstrend.
+    #### 1. die messgeräte
+    *   **aktueller kurs:** live-preis direkt von der börse.
+    *   **rsi (der puls):** 
+        *   🟢 **45 bis 65:** gesunde zone (perfekt für einkäufe).
+        *   🟡 **65 bis 75:** warnzone (der markt wird heiß).
+        *   🔴 **ab 75:** gefahr! (überhitzung, absturz wahrscheinlich).
+    *   **sma 200 (rote linie):** die harte grenze zwischen aufwärts- und abwärtstrend.
 
-    #### 2. Die Radar-Signale
-    *   🟢 **NEUTRAL:** Der Markt ist ziellos. Finger weg!
-    *   🔥 **KAUF-ZONE:** Kurs über roter Linie, Volumen hoch, RSI kühl. Einstieg prüfen.
-    *   ⚠️ **VERKAUF (Überhitzt):** RSI über 75. Gewinnsicherung prüfen.
-    *   🩸 **VERKAUF (Trendbruch):** Kurs stürzt unter rote Linie. Reißleine ziehen!
+    #### 2. die radar-signale
+    *   🟢 **neutral:** der markt ist ziellos. finger weg!
+    *   🔥 **kauf-zone:** kurs über roter linie, volumen hoch, rsi kühl. einstieg prüfen.
+    *   ⚠️ **verkauf (überhitzt):** rsi über 75. gewinnsicherung prüfen.
+    *   🩸 **verkauf (trendbruch):** kurs stürzt unter rote linie. reißleine ziehen!
     """)
 
 COIN_BASIS = {
-    "XBT": "Bitcoin - Platz 1", 
-    "ETH": "Ethereum - Platz 2", 
-    "SOL": "Solana - Platz 5", 
-    "ADA": "Cardano - Platz 10", 
-    "DOT": "Polkadot - Platz 15", 
-    "LINK": "Chainlink - Platz 16",
-    "BCH": "Bitcoin Cash - Platz 17",
-    "LTC": "Litecoin - Platz 21",
-    "PEPE": "Pepe - Platz 24", 
-    "SUI": "Sui - Platz 28", 
-    "FET": "Fetch.ai - Platz 33", 
-    "XMR": "Monero - Platz 35",
-    "ARB": "Arbitrum - Platz 42"
+    "XBT": "bitcoin - platz 1", 
+    "ETH": "ethereum - platz 2", 
+    "SOL": "solana - platz 5", 
+    "ADA": "cardano - platz 10", 
+    "DOT": "polkadot - platz 15", 
+    "LINK": "chainlink - platz 16",
+    "BCH": "bitcoin cash - platz 17",
+    "LTC": "litecoin - platz 21",
+    "PEPE": "pepe - platz 24", 
+    "SUI": "sui - platz 28", 
+    "FET": "fetch.ai - platz 33", 
+    "XMR": "monero - platz 35",
+    "ARB": "arbitrum - platz 42"
 }
 
 if 'meine_basis_coins' not in st.session_state:
@@ -86,7 +85,7 @@ def format_basis_label(basis_code):
     return f"{basis_code} ➔ {COIN_BASIS.get(basis_code, basis_code)}"
 
 auswahl = st.sidebar.multiselect(
-    "Währungen suchen (Tippen/Scrollen):", 
+    "währungen suchen (tippen/scrollen):", 
     options=alle_basis_coins, 
     default=st.session_state.meine_basis_coins,
     format_func=format_basis_label
@@ -98,9 +97,9 @@ for c in auswahl:
 st.session_state.meine_basis_coins = neue_liste
 
 st.sidebar.markdown("---")
-st.sidebar.subheader("💰 Order-Rechner")
-investition = st.sidebar.number_input("Geplante Kaufsumme", min_value=10, value=500, step=50)
-ziel_prozent = st.sidebar.number_input("Ziel-Gewinn Take-Profit (%)", min_value=1, max_value=1000, value=15, step=1)
+st.sidebar.subheader("💰 order-rechner")
+investition = st.sidebar.number_input("geplante kaufsumme", min_value=10, value=500, step=50)
+ziel_prozent = st.sidebar.number_input("ziel-gewinn take-profit (%)", min_value=1, max_value=1000, value=15, step=1)
 
 # ==========================================
 # MODUL 1: DATENBESCHAFFUNG 
@@ -133,19 +132,20 @@ def fetch_kraken_ohlcv(pair: str, interval: int = 240):
 # MODUL 2: DASHBOARD AUFBAU (Das Cockpit)
 # ==========================================
 jetzt_string = datetime.now(aktuelle_zeitzone).strftime('%d.%m.%Y - %H:%M:%S')
-st.write(f"🔄 **Autopilot aktiv:** (Gesamtsystem zuletzt aktualisiert: {jetzt_string})")
+st.write(f"🔄 **autopilot aktiv:** (gesamtsystem zuletzt aktualisiert: {jetzt_string})")
 st.markdown("---")
 
 w_symbol = FIAT_SYMBOLE.get(basis_waehrung, basis_waehrung)
 
 for i, basis_coin in enumerate(st.session_state.meine_basis_coins):
-    anzeige_name = COIN_BASIS.get(basis_coin, "Altcoin")
+    anzeige_name = COIN_BASIS.get(basis_coin, "altcoin")
     voller_coin_name = f"{basis_coin}{basis_waehrung}"
     
     daten_paket = fetch_kraken_ohlcv(voller_coin_name, interval=240)
     
     if daten_paket is None:
-        st.error(f"⚠️ Handelspaar {voller_coin_name} wird auf dieser Börse aktuell nicht angeboten.")
+        # Hier wird jetzt der volle Name in der Fehlermeldung ausgegeben
+        st.error(f"⚠️ handelspaar **{voller_coin_name} ({anzeige_name})** wird auf dieser börse aktuell nicht angeboten.")
         st.markdown("---")
         continue
 
@@ -156,10 +156,10 @@ for i, basis_coin in enumerate(st.session_state.meine_basis_coins):
     sma = aktuelle_kerze['sma_200']
     vol = aktuelle_kerze['volume_ratio']
 
-    status = "🟢 NEUTRAL (Abwarten - Finger weg)"
-    if preis > sma and (45 <= rsi <= 65) and vol >= 2.0: status = "🔥 KAUF-ZONE (Einstieg prüfen)"
-    elif rsi >= 75: status = "⚠️ VERKAUF (Markt überhitzt)"
-    elif preis < sma: status = "🩸 VERKAUF (Trendbruch unter rote Linie)"
+    status = "🟢 neutral (abwarten - finger weg)"
+    if preis > sma and (45 <= rsi <= 65) and vol >= 2.0: status = "🔥 kauf-zone (einstieg prüfen)"
+    elif rsi >= 75: status = "⚠️ verkauf (markt überhitzt)"
+    elif preis < sma: status = "🩸 verkauf (trendbruch unter rote linie)"
 
     if rsi >= 75: rsi_ampel = "🔴"
     elif rsi >= 65: rsi_ampel = "🟡"
@@ -170,11 +170,11 @@ for i, basis_coin in enumerate(st.session_state.meine_basis_coins):
     col_k1, col_k2, col_k3, col_k4, col_k5 = st.columns([3.5, 2, 2, 0.5, 0.5])
     
     with col_k1:
-        st.markdown(f"### {voller_coin_name}\n**{anzeige_name}**<br><span style='font-size:14px; color:#888888;'>Ping: {ping_zeit}</span>", unsafe_allow_html=True)
+        st.markdown(f"### {voller_coin_name}\n**{anzeige_name}**<br><span style='font-size:14px; color:#888888;'>ping: {ping_zeit}</span>", unsafe_allow_html=True)
     with col_k2:
-        st.metric(label="Live-Kurs (Börse)", value=f"{preis:.{dezimalstellen}f} {w_symbol}")
+        st.metric(label="live-kurs (börse)", value=f"{preis:.{dezimalstellen}f} {w_symbol}")
     with col_k3:
-        st.metric(label=f"RSI (Puls)", value=f"{rsi:.1f} {rsi_ampel}")
+        st.metric(label=f"rsi (puls)", value=f"{rsi:.1f} {rsi_ampel}")
     with col_k4:
         st.markdown("<br>", unsafe_allow_html=True) 
         if i > 0:
@@ -188,33 +188,33 @@ for i, basis_coin in enumerate(st.session_state.meine_basis_coins):
                 st.session_state.meine_basis_coins[i], st.session_state.meine_basis_coins[i+1] = st.session_state.meine_basis_coins[i+1], st.session_state.meine_basis_coins[i]
                 st.rerun()
 
-    with st.expander(f"📊 Order-Plan & Chart für {voller_coin_name} öffnen"):
+    with st.expander(f"📊 order-plan & chart für {voller_coin_name} öffnen"):
         col_d1, col_d2 = st.columns([1, 1.5])
         
         with col_d1:
-            st.info(f"**Signal: {status}**")
-            st.markdown(f"**Order-Plan für {investition} {w_symbol}:**")
+            st.info(f"**signal: {status}**")
+            st.markdown(f"**order-plan für {investition} {w_symbol}:**")
             coins_gekauft = investition / preis
             limit_3_pct_preis = preis * 0.97
             verlust = investition - (coins_gekauft * limit_3_pct_preis)
             ziel_preis = preis * (1 + (ziel_prozent / 100))
             gewinn = (coins_gekauft * ziel_preis) - investition
             
-            st.markdown(f"- 🪙 **Menge:** {coins_gekauft:,.2f} Stück")
-            st.markdown(f"- 🛑 **Stop (-3%):** Limit bei **{limit_3_pct_preis:.{dezimalstellen}f} {w_symbol}** (-{verlust:.2f} {w_symbol})")
-            st.markdown(f"- 🎯 **Ziel (+{ziel_prozent}%):** Limit bei **{ziel_preis:.{dezimalstellen}f} {w_symbol}** (+{gewinn:.2f} {w_symbol})")
+            st.markdown(f"- 🪙 **menge:** {coins_gekauft:,.2f} stück")
+            st.markdown(f"- 🛑 **stop (-3%):** limit bei **{limit_3_pct_preis:.{dezimalstellen}f} {w_symbol}** (-{verlust:.2f} {w_symbol})")
+            st.markdown(f"- 🎯 **ziel (+{ziel_prozent}%):** limit bei **{ziel_preis:.{dezimalstellen}f} {w_symbol}** (+{gewinn:.2f} {w_symbol})")
 
         with col_d2:
             fig = go.Figure()
             fig.add_trace(go.Scatter(
                 x=df_live['timestamp'], y=df_live['close'], 
-                mode='lines', line=dict(color='#4da6ff', width=2), name='Kurs',
-                hovertemplate=f'<b>Kurs:</b> %{{y:.4f}} {w_symbol}<br><b>Block-Start:</b> %{{x|%d.%m. - %H:%M}}<extra></extra>'
+                mode='lines', line=dict(color='#4da6ff', width=2), name='kurs',
+                hovertemplate=f'<b>kurs:</b> %{{y:.4f}} {w_symbol}<br><b>block-start:</b> %{{x|%d.%m. - %H:%M}}<extra></extra>'
             ))
             fig.add_trace(go.Scatter(
                 x=df_live['timestamp'], y=df_live['sma_200'], 
-                mode='lines', line=dict(color='#ff4d4d', width=2, dash='dash'), name='SMA 200 (Trend)',
-                hovertemplate=f'<b>Trend-Grenze:</b> %{{y:.4f}} {w_symbol}<br><b>Block-Start:</b> %{{x|%d.%m. - %H:%M}}<extra></extra>'
+                mode='lines', line=dict(color='#ff4d4d', width=2, dash='dash'), name='sma 200 (trend)',
+                hovertemplate=f'<b>trend-grenze:</b> %{{y:.4f}} {w_symbol}<br><b>block-start:</b> %{{x|%d.%m. - %H:%M}}<extra></extra>'
             ))
             
             letzter_zeitpunkt = df_live['timestamp'].iloc[-1]
@@ -232,6 +232,6 @@ for i, basis_coin in enumerate(st.session_state.meine_basis_coins):
                 hovermode="x unified"
             )
             st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False})
-            st.caption("🔴 **Rote Linie: Makro-Trend (SMA 200)** ➔ Fällt der Kurs darunter, droht ein Trendbruch.")
+            st.caption("🔴 **rote linie: makro-trend (sma 200)** ➔ fällt der kurs darunter, droht ein trendbruch.")
 
     st.markdown("---")
