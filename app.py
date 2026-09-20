@@ -8,82 +8,9 @@ import warnings
 warnings.filterwarnings('ignore')
 
 # ==========================================
-# ⚙️ SEITEN-KONFIGURATION & AUTO-REFRESH
+# ⚙️ SEITEN-KONFIGURATION
 # ==========================================
 st.set_page_config(page_title="steuerzentrale radar", layout="wide")
-st.markdown('<meta http-equiv="refresh" content="300">', unsafe_allow_html=True)
-
-# ==========================================
-# 💾 DAUERHAFTES GEDÄCHTNIS (Alle Werte einfrieren)
-# ==========================================
-if 'investition' not in st.session_state:
-    st.session_state.investition = 500
-
-if 'ziel_prozent' not in st.session_state:
-    st.session_state.ziel_prozent = 15
-
-if 'meine_basis_coins' not in st.session_state:
-    st.session_state.meine_basis_coins = ["XBT", "ETH", "SOL", "PEPE", "SUI", "FET"]
-
-if 'gewaehlte_tz_idx' not in st.session_state:
-    st.session_state.gewaehlte_tz_idx = 0
-
-if 'fiat_wahl' not in st.session_state:
-    st.session_state.fiat_wahl = "EUR"
-
-# ==========================================
-# 🎛️ EINSTELLUNGEN (Mit Reset-Funktion)
-# ==========================================
-st.sidebar.header("⚙️ system-einstellungen")
-
-if st.sidebar.button("🔄 auf werkseinstellungen zurücksetzen"):
-    st.session_state.investition = 500
-    st.session_state.ziel_prozent = 15
-    st.session_state.meine_basis_coins = ["XBT", "ETH", "SOL", "PEPE", "SUI", "FET"]
-    st.session_state.gewaehlte_tz_idx = 0
-    st.session_state.fiat_wahl = "EUR"
-    st.rerun()
-
-st.sidebar.markdown("---")
-
-st.sidebar.selectbox("🏛️ krypto-börse (api):", ["kraken", "binance (in vorbereitung)", "coinbase (in vorbereitung)"])
-st.sidebar.caption("⚠️ kann nur geändert werden, wenn die api-schnittstelle aktiv ist.")
-
-st.sidebar.markdown("---")
-
-zeitzonen_optionen = {
-    "deutschland (berlin / mez)": "Europe/Berlin",
-    "england (london / gmt)": "Europe/London",
-    "schweiz (zürich / cet)": "Europe/Zurich",
-    "usa (new york / est)": "America/New_York",
-    "japan (tokyo / jst)": "Asia/Tokyo",
-    "weltzeit (utc)": "UTC"
-}
-
-tz_keys = list(zeitzonen_optionen.keys())
-gewaehlte_tz_label = st.sidebar.selectbox(
-    "🌍 lokale zeitzone:", 
-    tz_keys, 
-    index=st.session_state.gewaehlte_tz_idx,
-    key="select_tz"
-)
-st.session_state.gewaehlte_tz_idx = tz_keys.index(gewaehlte_tz_label)
-aktuelle_zeitzone = ZoneInfo(zeitzonen_optionen[gewaehlte_tz_label])
-
-FIAT_SYMBOLE = {
-    "EUR": "€", "USD": "$", "GBP": "£", "CHF": "chf", "CAD": "ca$", "AUD": "au$", "JPY": "¥"
-}
-fiat_keys = list(FIAT_SYMBOLE.keys())
-basis_waehrung = st.sidebar.selectbox(
-    "💵 bevorzugte fiat-währung:", 
-    fiat_keys, 
-    index=fiat_keys.index(st.session_state.fiat_wahl),
-    key="select_fiat"
-)
-st.session_state.fiat_wahl = basis_waehrung
-
-st.sidebar.markdown("---")
-st.sidebar.header("🎛️ deine watchlist")
 
 st.title("🚀 krypto-steuerzentrale | live-radar")
 
@@ -106,6 +33,78 @@ with st.expander("❓ hilfe & erklärung (hier klicken, um alle funktionen zu ve
     *   ⚠️ **verkauf (überhitzt):** rsi über 75. gewinnsicherung prüfen.
     *   🩸 **verkauf (trendbruch):** kurs stürzt unter rote linie. reißleine ziehen!
     """)
+
+# ==========================================
+# 💾 FELSENFESTES GEDÄCHTNIS (Session State)
+# ==========================================
+if 'investition' not in st.session_state:
+    st.session_state.investition = 500
+
+if 'ziel_prozent' not in st.session_state:
+    st.session_state.ziel_prozent = 15
+
+if 'meine_basis_coins' not in st.session_state:
+    st.session_state.meine_basis_coins = ["XBT", "ETH", "SOL", "PEPE"]
+
+if 'fiat_wahl' not in st.session_state:
+    st.session_state.fiat_wahl = "EUR"
+
+if 'tz_wahl' not in st.session_state:
+    st.session_state.tz_wahl = "deutschland (berlin / mez)"
+
+# ==========================================
+# 🎛️ EINSTELLUNGEN (In der Seitenleiste)
+# ==========================================
+st.sidebar.header("⚙️ system-einstellungen")
+
+if st.sidebar.button("🔄 auf werkseinstellungen zurücksetzen"):
+    st.session_state.investition = 500
+    st.session_state.ziel_prozent = 15
+    st.session_state.meine_basis_coins = ["XBT", "ETH", "SOL", "PEPE"]
+    st.session_state.fiat_wahl = "EUR"
+    st.session_state.tz_wahl = "deutschland (berlin / mez)"
+    st.rerun()
+
+st.sidebar.markdown("---")
+
+st.sidebar.selectbox("🏛️ krypto-börse (api):", ["kraken", "binance (in vorbereitung)", "coinbase (in vorbereitung)"])
+st.sidebar.caption("⚠️ kann nur geändert werden, wenn die api-schnittstelle aktiv ist.")
+
+st.sidebar.markdown("---")
+
+zeitzonen_optionen = {
+    "deutschland (berlin / mez)": "Europe/Berlin",
+    "england (london / gmt)": "Europe/London",
+    "schweiz (zürich / cet)": "Europe/Zurich",
+    "usa (new york / est)": "America/New_York",
+    "japan (tokyo / jst)": "Asia/Tokyo",
+    "weltzeit (utc)": "UTC"
+}
+
+tz_keys = list(zeitzonen_optionen.keys())
+gewaehlte_tz_label = st.sidebar.selectbox(
+    "🌍 lokale zeitzone:", 
+    tz_keys, 
+    index=tz_keys.index(st.session_state.tz_wahl) if st.session_state.tz_wahl in tz_keys else 0,
+    key="select_tz_safe"
+)
+st.session_state.tz_wahl = gewaehlte_tz_label
+aktuelle_zeitzone = ZoneInfo(zeitzonen_optionen[gewaehlte_tz_label])
+
+FIAT_SYMBOLE = {
+    "EUR": "€", "USD": "$", "GBP": "£", "CHF": "chf", "CAD": "ca$", "AUD": "au$", "JPY": "¥"
+}
+fiat_keys = list(FIAT_SYMBOLE.keys())
+basis_waehrung = st.sidebar.selectbox(
+    "💵 bevorzugte fiat-währung:", 
+    fiat_keys, 
+    index=fiat_keys.index(st.session_state.fiat_wahl) if st.session_state.fiat_wahl in fiat_keys else 0,
+    key="select_fiat_safe"
+)
+st.session_state.fiat_wahl = basis_waehrung
+
+st.sidebar.markdown("---")
+st.sidebar.header("🎛️ deine watchlist")
 
 COIN_BASIS = {
     "XBT": "bitcoin - platz 1", 
@@ -133,13 +132,9 @@ auswahl = st.sidebar.multiselect(
     options=alle_basis_coins, 
     default=st.session_state.meine_basis_coins,
     format_func=format_basis_label,
-    key="multiselect_coins"
+    key="multiselect_coins_safe"
 )
-
-neue_liste = [c for c in st.session_state.meine_basis_coins if c in auswahl]
-for c in auswahl:
-    if c not in neue_liste: neue_liste.append(c)
-st.session_state.meine_basis_coins = neue_liste
+st.session_state.meine_basis_coins = auswahl
 
 st.sidebar.markdown("---")
 st.sidebar.subheader("💰 order-rechner")
@@ -149,7 +144,7 @@ investition = st.sidebar.number_input(
     min_value=10, 
     value=st.session_state.investition, 
     step=50,
-    key="input_invest"
+    key="input_invest_safe"
 )
 st.session_state.investition = investition
 
@@ -159,7 +154,7 @@ ziel_prozent = st.sidebar.number_input(
     max_value=1000, 
     value=st.session_state.ziel_prozent, 
     step=1,
-    key="input_ziel"
+    key="input_ziel_safe"
 )
 st.session_state.ziel_prozent = ziel_prozent
 
@@ -194,7 +189,7 @@ def fetch_kraken_ohlcv(pair: str, interval: int = 240):
 # MODUL 2: DASHBOARD AUFBAU (Das Cockpit)
 # ==========================================
 jetzt_string = datetime.now(aktuelle_zeitzone).strftime('%d.%m.%Y - %H:%M:%S')
-st.write(f"🔄 **autopilot aktiv:** (gesamtsystem zuletzt aktualisiert: {jetzt_string})")
+st.write(f"🔄 **status:** (letzter daten-abruf: {jetzt_string})")
 st.markdown("---")
 
 w_symbol = FIAT_SYMBOLE.get(basis_waehrung, basis_waehrung)
