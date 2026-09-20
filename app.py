@@ -15,18 +15,30 @@ COIN_NAMEN = {
     "PEPEEUR": "Pepe", "SUIEUR": "Sui", "FETEUR": "Fetch.ai", "ARBEUR": "Arbitrum"
 }
 
+# 1. Das Gedächtnis für deine Sortierung laden
+if 'meine_coins' not in st.session_state:
+    st.session_state.meine_coins = ["XBTEUR", "ETHEUR", "SOLEUR", "PEPEEUR", "SUIEUR", "FETEUR", "ARBEUR"]
+
 # ==========================================
-# ⚙️ SEITENLEISTE: BEDIENFELDER (Mit Worterkennung)
+# ⚙️ SEITENLEISTE: BEDIENFELDER
 # ==========================================
 st.sidebar.header("🎛️ Deine Einstellungen")
 
-# Die Worterkennung (Dropdown)
 alle_kraken_coins = ["XBTEUR", "ETHEUR", "SOLEUR", "PEPEEUR", "SUIEUR", "FETEUR", "ARBEUR", "ADAEUR", "DOGEEUR", "DOTEUR", "LINKEUR"]
-gewaehlte_coins = st.sidebar.multiselect(
-    "Währungen suchen / auswählen:", 
+
+# Das Menü dient nur noch dem Hinzufügen/Entfernen, nicht mehr der Sortierung
+auswahl = st.sidebar.multiselect(
+    "Währungen an/aus (Sortierung machst du rechts!):", 
     options=alle_kraken_coins, 
-    default=["XBTEUR", "ETHEUR", "SOLEUR", "PEPEEUR"] # Diese bleiben für immer gespeichert
+    default=st.session_state.meine_coins
 )
+
+# Sortierung synchronisieren (Neue ans Ende, gelöschte raus)
+neue_liste = [c for c in st.session_state.meine_coins if c in auswahl]
+for c in auswahl:
+    if c not in neue_liste:
+        neue_liste.append(c)
+st.session_state.meine_coins = neue_liste
 
 st.sidebar.markdown("---")
 st.sidebar.subheader("💰 Order-Rechner")
@@ -64,14 +76,29 @@ def fetch_kraken_ohlcv(pair: str, interval: int = 240):
 st.write(f"Letztes Update: {datetime.now().strftime('%d.%m.%Y - %H:%M:%S')} (Daten laden alle 5 Min. neu)")
 st.markdown("---")
 
-for coin in gewaehlte_coins:
+for i, coin in enumerate(st.session_state.meine_coins):
     anzeige_name = COIN_NAMEN.get(coin, "Altcoin")
-    st.markdown(f"### {coin} ({anzeige_name})")
+    
+    # Die neuen Sortier-Knöpfe direkt in der Kopfzeile der Währung
+    col_t1, col_t2, col_t3 = st.columns([6, 1, 1])
+    with col_t1:
+        st.markdown(f"### {coin} ({anzeige_name})")
+    with col_t2:
+        if i > 0:
+            if st.button("⬆️ Hoch", key=f"up_{coin}"):
+                st.session_state.meine_coins[i], st.session_state.meine_coins[i-1] = st.session_state.meine_coins[i-1], st.session_state.meine_coins[i]
+                st.rerun()
+    with col_t3:
+        if i < len(st.session_state.meine_coins) - 1:
+            if st.button("⬇️ Runter", key=f"down_{coin}"):
+                st.session_state.meine_coins[i], st.session_state.meine_coins[i+1] = st.session_state.meine_coins[i+1], st.session_state.meine_coins[i]
+                st.rerun()
     
     df_live = fetch_kraken_ohlcv(coin, interval=240)
     
     if df_live is None:
         st.error(f"⚠️ Fehler: Keine Daten für {coin}.")
+        st.markdown("---")
         continue
 
     aktuelle_kerze = df_live.iloc[-1]
@@ -80,13 +107,11 @@ for coin in gewaehlte_coins:
     sma = aktuelle_kerze['sma_200']
     vol = aktuelle_kerze['volume_ratio']
 
-    # Signal-Logik
-    status = "🟢 NEUTRAL (Abwarten)"
-    if preis > sma and (45 <= rsi <= 65) and vol >= 2.0: status = "🔥 KAUF-ZONE"
-    elif rsi >= 75: status = "⚠️ VERKAUF (Überhitzt)"
+    status = "🟢 NEUTRAL (Abwarten - Finger weg)"
+    if preis > sma and (45 <= rsi <= 65) and vol >= 2.0: status = "🔥 KAUF-ZONE (Einstieg prüfen)"
+    elif rsi >= 75: status = "⚠️ VERKAUF (Markt überhitzt)"
     elif preis < sma: status = "🩸 VERKAUF (Trendbruch)"
 
-    # Die neue RSI-Ampel
     if rsi >= 75: rsi_ampel = "🔴"
     elif rsi >= 65: rsi_ampel = "🟡"
     elif rsi >= 45: rsi_ampel = "🟢"
@@ -114,21 +139,34 @@ for coin in gewaehlte_coins:
         st.markdown(f"- 🎯 **Ziel (+{ziel_prozent}%):** Limit bei **{ziel_preis:.{dezimalstellen}f} €** (Gewinn: +{gewinn_euro:.2f} €)")
 
     with col3:
-        # Interaktiver Plotly-Chart
         fig = go.Figure()
-        fig.add_trace(go.Scatter(x=df_live['timestamp'], y=df_live['close'], mode='lines', line=dict(color='#4da6ff', width=2), name='Kurs'))
-        fig.add_trace(go.Scatter(x=df_live['timestamp'], y=df_live['sma_200'], mode='lines', line=dict(color='#ff4d4d', width=2, dash='dash'), name='SMA 200'))
+        
+        fig.add_trace(go.Scatter(
+            x=df_live['timestamp'], y=df_live['close'], 
+            mode='lines', line=dict(color='#4da6ff', width=2), name='Kurs',
+            hovertemplate='<b>Kurs:</b> %{y:.4f} €<br><b>Zeit:</b> %{x|%d.%m.%Y - %H:%M} Uhr<extra></extra>'
+        ))
+        
+        fig.add_trace(go.Scatter(
+            x=df_live['timestamp'], y=df_live['sma_200'], 
+            mode='lines', line=dict(color='#ff4d4d', width=2, dash='dash'), name='SMA 200 (Trend)',
+            hovertemplate='<b>Trend-Grenze:</b> %{y:.4f} €<br><b>Zeit:</b> %{x|%d.%m.%Y - %H:%M} Uhr<extra></extra>'
+        ))
         
         fig.update_layout(
             margin=dict(l=0, r=0, t=10, b=0),
             plot_bgcolor='rgba(0,0,0,0)',
             paper_bgcolor='rgba(0,0,0,0)',
-            xaxis=dict(tickformat="%d.%m.\n%H:%M", tickfont=dict(size=10, color='gray'), showgrid=False),
+            xaxis=dict(tickformat="%d.%m.", tickfont=dict(size=10, color='gray'), showgrid=False),
             yaxis=dict(tickfont=dict(size=10, color='gray'), showgrid=True, gridcolor='#333333'),
             showlegend=False,
-            height=250,
+            height=200,
             hovermode="x unified"
         )
-        st.plotly_chart(fig, use_container_width=True)
+        # Hier schalten wir das englische Menü ('displayModeBar': False) ab
+        st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False})
+        
+        # Die permanente Anzeigetafel direkt unter dem Chart
+        st.caption("🔴 **Rote Linie: Makro-Trend (SMA 200)** ➔ Fällt der Kurs (Blau) darunter, ist das ein Trendbruch (Verkaufen / Hände weg!).")
 
     st.markdown("---")
