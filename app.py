@@ -17,6 +17,7 @@ st.set_page_config(page_title="steuerzentrale radar", layout="wide")
 # ==========================================
 if 'investition' not in st.session_state: st.session_state.investition = 300.0
 if 'ziel_prozent' not in st.session_state: st.session_state.ziel_prozent = 10.0
+if 'stop_prozent' not in st.session_state: st.session_state.stop_prozent = 3.0
 if 'fiat_wahl' not in st.session_state: st.session_state.fiat_wahl = "EUR"
 if 'tz_wahl' not in st.session_state: st.session_state.tz_wahl = "deutschland (berlin / mez)"
 
@@ -159,7 +160,7 @@ auswahl = st.sidebar.multiselect(
 st.session_state.meine_basis_coins = auswahl
 
 st.sidebar.markdown("---")
-st.sidebar.subheader("💼 mein portfolio (Trailing Stop)")
+st.sidebar.subheader("💼 mein portfolio (Bestand)")
 
 port_auswahl = st.sidebar.selectbox(
     "welchen coin besitzt du?", 
@@ -174,10 +175,11 @@ st.session_state.port_menge = st.sidebar.number_input("meine menge (stück)", mi
 st.session_state.port_kaufpreis = st.sidebar.number_input(f"mein kaufkurs ({w_symbol})", min_value=0.0, value=float(st.session_state.port_kaufpreis), step=0.1)
 
 st.sidebar.markdown("---")
-st.sidebar.subheader("💰 order-rechner (Neu-Einstieg)")
+st.sidebar.subheader("💰 risiko-management & order")
 
 st.session_state.investition = st.sidebar.number_input("geplante kaufsumme", min_value=10.0, value=float(st.session_state.investition), step=50.0)
 st.session_state.ziel_prozent = st.sidebar.number_input("ziel-gewinn take-profit (%)", min_value=1.0, max_value=1000.0, value=float(st.session_state.ziel_prozent), step=1.0)
+st.session_state.stop_prozent = st.sidebar.number_input("stop-loss / trailing-stop (%)", min_value=0.1, max_value=100.0, value=float(st.session_state.stop_prozent), step=0.5)
 
 # ==========================================
 # HAUPTBEREICH
@@ -237,6 +239,9 @@ def live_radar_cockpit():
             numeric_cols = ['open', 'high', 'low', 'close', 'volume']
             df_live[numeric_cols] = df_live[numeric_cols].apply(pd.to_numeric, errors='coerce')
             
+            # Volatilität berechnen (Schwankungsbreite der Kerze in Prozent)
+            df_live['amplitude'] = (df_live['high'] - df_live['low']) / df_live['low'] * 100
+            
             delta = df_live['close'].diff()
             gain = delta.clip(lower=0).ewm(alpha=1/14, min_periods=14).mean()
             loss = (-delta.clip(upper=0)).ewm(alpha=1/14, min_periods=14).mean()
@@ -252,25 +257,27 @@ def live_radar_cockpit():
         rsi = aktuelle_kerze['rsi']
         sma = aktuelle_kerze['sma_200']
         vol = aktuelle_kerze['volume_ratio']
+        
+        # Durchschnittliche Schwankung der letzten 14 Kerzen (4h Intervalle)
+        volatilitaet_14 = df_live['amplitude'].tail(14).mean()
 
         status = "⚪ neutral (abwarten / halten)"
         if preis > sma and (45 <= rsi <= 65) and vol >= 2.0: status = "🟢 KAUF-ZONE (einstieg prüfen)"
         elif rsi >= 75: status = "🔴 VERKAUF (markt überhitzt)"
         elif preis < sma: status = "🔴 VERKAUF (trendbruch unter rote linie)"
 
-        # Definition der Signal-Farben für die dynamische Box
         if status.startswith("🟢"): 
             rsi_ampel = "🟢"
-            rand_farbe = "#00cc66" # Strahlendes Grün
+            rand_farbe = "#00cc66" 
             dca_icon = "🟢"
         elif rsi >= 75 or status.startswith("🔴"): 
             rsi_ampel = "🔴"
-            rand_farbe = "#ff4d4d" # Warnendes Rot
+            rand_farbe = "#ff4d4d" 
             dca_icon = "🔴"
         else: 
             if rsi <= 45: rsi_ampel = "🧊" 
             else: rsi_ampel = "⚪"
-            rand_farbe = "#555555" # Ruhiges Grau
+            rand_farbe = "#555555" 
             dca_icon = "⚪"
         
         dezimalstellen = 6 if preis < 1.0 else 4
@@ -295,7 +302,7 @@ def live_radar_cockpit():
                 st.rerun()
 
         if f"chk_{basis_coin}" not in st.session_state: st.session_state[f"chk_{basis_coin}"] = False
-        is_open = st.checkbox(f"📊 Chart & Order-Rechner für {anzeige_name_sauber.split(' (')[0]} einblenden", key=f"chk_{basis_coin}")
+        is_open = st.checkbox(f"📊 Chart & Risikomanagement für {anzeige_name_sauber.split(' (')[0]} einblenden", key=f"chk_{basis_coin}")
 
         if is_open:
             st.markdown(f"""<div style="border-left: 3px solid {rand_farbe}; padding-left: 15px; margin-bottom: 20px;">""", unsafe_allow_html=True)
@@ -314,12 +321,14 @@ def live_radar_cockpit():
                 neues_investment = investiert + st.session_state.investition
                 neuer_durchschnitt = neues_investment / neue_gesamtmenge if neue_gesamtmenge > 0 else 0
                 
+                # Der Trailing Stop wird flexibel berechnet
+                trailing_stop = preis * (1 - (st.session_state.stop_prozent / 100))
+                
                 col_p1, col_p2, col_p3 = st.columns(3)
                 col_p1.metric("Aktueller Wert", f"{aktueller_wert:.2f} {w_symbol}")
                 col_p2.metric("Gewinn / Verlust", f"{pnl:.2f} {w_symbol}", f"{pnl_pct:.2f}%")
-                col_p3.metric("🚨 Trailing-Stop (-3%)", f"{(preis * 0.97):.{dezimalstellen}f} {w_symbol}")
+                col_p3.metric(f"🚨 Trailing-Stop (-{st.session_state.stop_prozent}%)", f"{trailing_stop:.{dezimalstellen}f} {w_symbol}")
                 
-                # Die neue dunkle Info-Box mit Signal-Rahmen
                 dca_html = f"""
                 <div style="background-color: #1a1a1a; border: 2px solid {rand_farbe}; border-radius: 8px; padding: 15px; margin-bottom: 20px;">
                     <span style="font-size: 15px; color: #e0e0e0; line-height: 1.5;">
@@ -335,14 +344,23 @@ def live_radar_cockpit():
                 st.info(f"**signal: {status}**")
                 st.markdown(f"**order-rechner (Neu-Einstieg für {st.session_state.investition} {w_symbol}):**")
                 coins_gekauft = st.session_state.investition / preis
-                limit_3_pct_preis = preis * 0.97
-                verlust = st.session_state.investition - (coins_gekauft * limit_3_pct_preis)
+                
+                # Flexible Order Stop und Ziel
+                limit_stop_preis = preis * (1 - (st.session_state.stop_prozent / 100))
+                verlust = st.session_state.investition - (coins_gekauft * limit_stop_preis)
                 ziel_preis = preis * (1 + (st.session_state.ziel_prozent / 100))
                 gewinn = (coins_gekauft * ziel_preis) - st.session_state.investition
                 
                 st.markdown(f"- 🪙 **menge:** {coins_gekauft:,.2f} stück")
-                st.markdown(f"- 🛑 **stop (-3%):** limit bei **{limit_3_pct_preis:.{dezimalstellen}f} {w_symbol}** (-{verlust:.2f} {w_symbol})")
+                st.markdown(f"- 🛑 **stop (-{st.session_state.stop_prozent}%):** limit bei **{limit_stop_preis:.{dezimalstellen}f} {w_symbol}** (-{verlust:.2f} {w_symbol})")
                 st.markdown(f"- 🎯 **ziel (+{st.session_state.ziel_prozent}%):** limit bei **{ziel_preis:.{dezimalstellen}f} {w_symbol}** (+{gewinn:.2f} {w_symbol})")
+                st.markdown("<br>", unsafe_allow_html=True)
+                
+                # Der Top 1% Risiko-Berater
+                if st.session_state.stop_prozent <= volatilitaet_14:
+                    st.warning(f"⚠️ **Volatilitäts-Warnung:** {anzeige_name_sauber.split(' (')[0]} schwankt aktuell im Schnitt um **{volatilitaet_14:.1f}%**. Dein Stop ({st.session_state.stop_prozent}%) ist zu eng.")
+                else:
+                    st.success(f"🛡️ **Risiko-Check:** Dein Stop ({st.session_state.stop_prozent}%) liegt sicher außerhalb der normalen Schwankung ({volatilitaet_14:.1f}%).")
 
             with col_d2:
                 fig = go.Figure()
