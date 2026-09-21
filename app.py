@@ -13,17 +13,15 @@ warnings.filterwarnings('ignore')
 st.set_page_config(page_title="steuerzentrale radar", layout="wide")
 
 # ==========================================
-# 💾 FELSENFESTES GEDÄCHTNIS (Session State)
+# 💾 DER TRESOR (Währungsspezifisches Langzeitgedächtnis)
 # ==========================================
-if 'investition' not in st.session_state: st.session_state.investition = 300.0
-if 'ziel_prozent' not in st.session_state: st.session_state.ziel_prozent = 10.0
-if 'stop_prozent' not in st.session_state: st.session_state.stop_prozent = 3.0
 if 'fiat_wahl' not in st.session_state: st.session_state.fiat_wahl = "EUR"
 if 'tz_wahl' not in st.session_state: st.session_state.tz_wahl = "deutschland (berlin / mez)"
+if 'meine_basis_coins' not in st.session_state: st.session_state.meine_basis_coins = ["SOL", "PEPE", "SUI", "FET", "ADA"]
 
-if 'port_coin' not in st.session_state: st.session_state.port_coin = "XXRP"
-if 'port_menge' not in st.session_state: st.session_state.port_menge = 0.0
-if 'port_kaufpreis' not in st.session_state: st.session_state.port_kaufpreis = 0.0
+# Der Vault isoliert die Daten für JEDEN Coin strikt voneinander.
+if 'vault' not in st.session_state:
+    st.session_state.vault = {}
 
 # ==========================================
 # DAS REINE LEXIKON 
@@ -58,9 +56,6 @@ def fetch_kraken_assets():
         return {"XXRP": "XXRP ➔ Ripple", "XXBT": "XXBT ➔ Bitcoin"}
 
 ALLE_COINS_DICT = fetch_kraken_assets()
-
-if 'meine_basis_coins' not in st.session_state: 
-    st.session_state.meine_basis_coins = ["SOL", "PEPE", "SUI", "FET", "ADA"]
 st.session_state.meine_basis_coins = list(dict.fromkeys(st.session_state.meine_basis_coins))
 
 def get_clean_name(api_key):
@@ -69,8 +64,7 @@ def get_clean_name(api_key):
         parts = raw_name.split(" ➔ ")
         kurzel = parts[0].replace('XX', 'X').replace('Z', '')
         name = parts[1]
-        if name.upper() == kurzel.upper():
-            return name
+        if name.upper() == kurzel.upper(): return name
         return f"{name} ({kurzel})"
     return api_key
 
@@ -89,13 +83,10 @@ def fetch_global_ticker(fiat):
                 c = float(data['c'][0]) 
                 o = float(data['o'])    
                 v = float(data['v'][1]) 
-                volumen_fiat = c * v 
-                
-                if volumen_fiat >= 1000000 and o > 0:
+                if (c * v) >= 1000000 and o > 0:
                     pct = ((c - o) / o) * 100
                     base_asset = pair_name.replace(fiat, "").replace(f"Z{fiat}", "")
-                    display_name = ECHTE_NAMEN.get(base_asset, base_asset.replace('XX', 'X'))
-                    valid_pairs.append({'name': display_name, 'pct': pct})
+                    valid_pairs.append({'name': ECHTE_NAMEN.get(base_asset, base_asset.replace('XX', 'X')), 'pct': pct})
         
         valid_pairs.sort(key=lambda x: x['pct'], reverse=True)
         top_10 = valid_pairs[:10]
@@ -138,7 +129,7 @@ st.session_state.fiat_wahl = basis_waehrung
 w_symbol = FIAT_SYMBOLE.get(basis_waehrung, basis_waehrung)
 
 st.sidebar.markdown("---")
-st.sidebar.header("🎛️ deine watchlist (Alle Coins!)")
+st.sidebar.header("🎛️ deine watchlist")
 
 auswahl = st.sidebar.multiselect(
     "währungen suchen/hinzufügen:", 
@@ -149,26 +140,61 @@ auswahl = st.sidebar.multiselect(
 st.session_state.meine_basis_coins = auswahl
 
 st.sidebar.markdown("---")
-st.sidebar.subheader("💼 mein portfolio (Bestand)")
 
-port_auswahl = st.sidebar.selectbox(
-    "welchen coin besitzt du?", 
-    st.session_state.meine_basis_coins, 
-    index=0 if st.session_state.port_coin not in st.session_state.meine_basis_coins else st.session_state.meine_basis_coins.index(st.session_state.port_coin),
+# ==========================================
+# 🗄️ DER ISOLIERTE EINGABE-TRESOR (Formular)
+# ==========================================
+st.sidebar.subheader("💼 tresor & bestände")
+
+tresor_coin = st.sidebar.selectbox(
+    "Für welchen Coin möchtest du Daten eintragen?", 
+    st.session_state.meine_basis_coins,
     format_func=lambda x: ALLE_COINS_DICT.get(x, x)
 ) if len(st.session_state.meine_basis_coins) > 0 else None
 
-if port_auswahl: st.session_state.port_coin = port_auswahl
+if tresor_coin:
+    # Lade die Werte aus dem Tresor, falls vorhanden. Ansonsten zeige Null.
+    gespeichert = st.session_state.vault.get(tresor_coin, {
+        "menge": 0.0, "kaufpreis": 0.0, "investition": 300.0, "ziel": 10.0, "stop": 3.0, "timestamp": "Noch nicht gespeichert"
+    })
 
-st.session_state.port_menge = st.sidebar.number_input("meine menge (stück)", min_value=0.0, value=float(st.session_state.port_menge), step=10.0)
-st.session_state.port_kaufpreis = st.sidebar.number_input(f"mein kaufkurs ({w_symbol})", min_value=0.0, value=float(st.session_state.port_kaufpreis), step=0.1)
+    # Das Formular friert die Eingaben ein, bis auf den Button gedrückt wird!
+    with st.sidebar.form(key=f"form_{tresor_coin}"):
+        st.caption(f"Letzte Speicherung: {gespeichert['timestamp']}")
+        menge = st.number_input("Bestand (Stück)", min_value=0.0, value=float(gespeichert["menge"]), step=10.0)
+        kaufpreis = st.number_input(f"Kaufkurs ({w_symbol})", min_value=0.0, value=float(gespeichert["kaufpreis"]), step=0.1)
+        st.markdown("---")
+        investition = st.number_input("Geplante Neu-Investition", min_value=10.0, value=float(gespeichert["investition"]), step=50.0)
+        ziel = st.number_input("Ziel-Take-Profit (%)", min_value=1.0, value=float(gespeichert["ziel"]), step=1.0)
+        stop = st.number_input("Individueller Stop-Loss (%)", min_value=0.1, value=float(gespeichert["stop"]), step=0.5)
+        
+        # Der Submit-Button schreibt die Daten sicher in das Dictionary
+        submit = st.form_submit_button(f"💾 Werte für {get_clean_name(tresor_coin)} versiegeln")
+        
+        if submit:
+            st.session_state.vault[tresor_coin] = {
+                "menge": menge, "kaufpreis": kaufpreis, "investition": investition, 
+                "ziel": ziel, "stop": stop, 
+                "timestamp": datetime.now(aktuelle_zeitzone).strftime('%H:%M:%S')
+            }
+            st.rerun()
 
 st.sidebar.markdown("---")
-st.sidebar.subheader("💰 risiko-management & order")
 
-st.session_state.investition = st.sidebar.number_input("geplante kaufsumme", min_value=10.0, value=float(st.session_state.investition), step=50.0)
-st.session_state.ziel_prozent = st.sidebar.number_input("ziel-gewinn take-profit (%)", min_value=1.0, max_value=1000.0, value=float(st.session_state.ziel_prozent), step=1.0)
-st.session_state.stop_prozent = st.sidebar.number_input("stop-loss / trailing-stop (%)", min_value=0.1, max_value=100.0, value=float(st.session_state.stop_prozent), step=0.5)
+# ==========================================
+# 📚 SYSTEM-HANDBUCH (Ausgelagert in die Sidebar)
+# ==========================================
+with st.sidebar.expander("📚 system-handbuch & legende"):
+    st.markdown("""
+    **Signal-Farben (Regime):**
+    *   ⚪ **Neutral:** Abwarten.
+    *   🥶 **Blauer Diamant (Crash-Zone):** RSI < 30. Absolute Panik am Markt.
+    *   🟢 **Grünes Dreieck (Trend-Dip):** RSI < 35, aber Kurs über der roten SMA-Trendlinie. 
+    *   ❌ **Rotes X (Verkauf):** RSI > 75 (Überhitzt) oder Kurs fällt unter die Trendlinie.
+    
+    **Die DCA-Regel (Nachkaufen):**
+    Nutze den Nachkauf-Simulator nur zur Berechnung des Break-Even. Kaufe niemals stur in einen Abwärtstrend, sondern warte auf ein System-Go (🟢 oder 🥶).
+    """)
 
 # ==========================================
 # HAUPTBEREICH
@@ -178,20 +204,20 @@ st.title("🚀 krypto-steuerzentrale | live-radar")
 ticker_text = fetch_global_ticker(st.session_state.fiat_wahl)
 st.markdown(f"<marquee style='font-size: 15px; font-weight: bold; color: #d4d4d4; background-color: #1e1e1e; padding: 6px; border-radius: 5px; border: 1px solid #333;'>{ticker_text}</marquee>", unsafe_allow_html=True)
 
-with st.expander("🌍 weltuhren & börsen-öffnungszeiten (Wann kommt das große Geld?)"):
-    col_u1, col_u2, col_u3, col_u4 = st.columns(4)
-    col_u1.metric("🗽 New York (Wall Street)", f"{datetime.now(ZoneInfo('America/New_York')).strftime('%H:%M')} Uhr")
-    col_u2.metric("🎡 London (LSE)", f"{datetime.now(ZoneInfo('Europe/London')).strftime('%H:%M')} Uhr")
-    col_u3.metric("🥨 Berlin/Zürich", f"{datetime.now(ZoneInfo('Europe/Berlin')).strftime('%H:%M')} Uhr")
-    col_u4.metric("🗼 Tokyo (TSE)", f"{datetime.now(ZoneInfo('Asia/Tokyo')).strftime('%H:%M')} Uhr")
+# Weltuhren bleiben oben, aber clean ohne den Erklärtext
+col_u1, col_u2, col_u3, col_u4 = st.columns(4)
+col_u1.metric("🗽 New York (Wall Street)", f"{datetime.now(ZoneInfo('America/New_York')).strftime('%H:%M')} Uhr")
+col_u2.metric("🎡 London (LSE)", f"{datetime.now(ZoneInfo('Europe/London')).strftime('%H:%M')} Uhr")
+col_u3.metric("🥨 Berlin/Zürich", f"{datetime.now(ZoneInfo('Europe/Berlin')).strftime('%H:%M')} Uhr")
+col_u4.metric("🗼 Tokyo (TSE)", f"{datetime.now(ZoneInfo('Asia/Tokyo')).strftime('%H:%M')} Uhr")
 
 col_m1, col_m2 = st.columns([2, 5])
 with col_m1:
-    if st.button("☑️ Alle aufklappen"):
+    if st.button("☑️ Alle Charts aufklappen"):
         for c in st.session_state.meine_basis_coins: st.session_state[f"chk_{c}"] = True
         st.rerun()
 with col_m2:
-    if st.button("🔲 Alle zuklappen"):
+    if st.button("🔲 Alle Charts zuklappen"):
         for c in st.session_state.meine_basis_coins: st.session_state[f"chk_{c}"] = False
         st.rerun()
 
@@ -200,10 +226,15 @@ with col_m2:
 # ==========================================
 @st.fragment(run_every=300)
 def live_radar_cockpit():
-    st.write(f"🔄 **autopilot aktiv:** (radar zuletzt lautlos aktualisiert: {datetime.now(aktuelle_zeitzone).strftime('%H:%M:%S')})")
+    st.write(f"🔄 **autopilot aktiv:** (zuletzt lautlos aktualisiert: {datetime.now(aktuelle_zeitzone).strftime('%H:%M:%S')})")
     st.markdown("---")
 
     for i, basis_coin in enumerate(st.session_state.meine_basis_coins):
+        # Lade die coin-spezifischen Daten aus dem Tresor. Falls leer, Standardwerte nehmen.
+        c_data = st.session_state.vault.get(basis_coin, {
+            "menge": 0.0, "kaufpreis": 0.0, "investition": 300.0, "ziel": 10.0, "stop": 3.0
+        })
+
         anzeige_name_sauber = get_clean_name(basis_coin)
         pair_request = f"{basis_coin}{st.session_state.fiat_wahl}"
         
@@ -289,45 +320,48 @@ def live_radar_cockpit():
         if is_open:
             st.markdown(f"""<div style="border-left: 3px solid {rand_farbe}; padding-left: 15px; margin-bottom: 20px;">""", unsafe_allow_html=True)
             
-            if basis_coin == st.session_state.port_coin and st.session_state.port_menge > 0:
-                st.success(f"💼 **Dein Bestand:** {st.session_state.port_menge} Stück (Kaufkurs: {st.session_state.port_kaufpreis} {w_symbol})")
-                aktueller_wert = st.session_state.port_menge * preis
-                investiert = st.session_state.port_menge * st.session_state.port_kaufpreis
+            if c_data['menge'] > 0:
+                st.success(f"💼 **Dein Bestand im Tresor:** {c_data['menge']} Stück (Kaufkurs: {c_data['kaufpreis']} {w_symbol})")
+                aktueller_wert = c_data['menge'] * preis
+                investiert = c_data['menge'] * c_data['kaufpreis']
                 pnl = aktueller_wert - investiert
                 pnl_pct = (pnl / investiert) * 100 if investiert > 0 else 0
-                zusatz_menge = st.session_state.investition / preis
-                neue_gesamtmenge = st.session_state.port_menge + zusatz_menge
-                neues_investment = investiert + st.session_state.investition
+                
+                # Math-Sicherheit: Verhindern von Division durch Null
+                zusatz_menge = c_data['investition'] / preis if preis > 0 else 0
+                neue_gesamtmenge = c_data['menge'] + zusatz_menge
+                neues_investment = investiert + c_data['investition']
                 neuer_durchschnitt = neues_investment / neue_gesamtmenge if neue_gesamtmenge > 0 else 0
-                trailing_stop = preis * (1 - (st.session_state.stop_prozent / 100))
+                
+                trailing_stop = preis * (1 - (c_data['stop'] / 100))
                 
                 col_p1, col_p2, col_p3 = st.columns(3)
                 col_p1.metric("Aktueller Wert", f"{aktueller_wert:.2f} {w_symbol}")
                 col_p2.metric("Gewinn / Verlust", f"{pnl:.2f} {w_symbol}", f"{pnl_pct:.2f}%")
-                col_p3.metric(f"🚨 Trailing-Stop (-{st.session_state.stop_prozent}%)", f"{trailing_stop:.{dezimalstellen}f} {w_symbol}")
+                col_p3.metric(f"🚨 Trailing-Stop (-{c_data['stop']}%)", f"{trailing_stop:.{dezimalstellen}f} {w_symbol}")
                 
-                dca_html = f"""<div style="background-color: #1a1a1a; border: 2px solid {rand_farbe}; border-radius: 8px; padding: 15px; margin-bottom: 20px;"><span style="font-size: 15px; color: #e0e0e0; line-height: 1.5;">{dca_icon} <b>Nachkauf-Simulation (DCA):</b> Wenn du jetzt {st.session_state.investition:.2f} {w_symbol} investierst, sinkt dein Durchschnitts-Kaufpreis von <b>{st.session_state.port_kaufpreis:.4f} {w_symbol}</b> auf <b>{neuer_durchschnitt:.4f} {w_symbol}</b>.</span></div>"""
+                dca_html = f"""<div style="background-color: #1a1a1a; border: 2px solid {rand_farbe}; border-radius: 8px; padding: 15px; margin-bottom: 20px;"><span style="font-size: 15px; color: #e0e0e0; line-height: 1.5;">{dca_icon} <b>Nachkauf-Simulation (DCA):</b> Wenn du jetzt {c_data['investition']:.2f} {w_symbol} investierst, sinkt dein Durchschnitts-Kaufpreis von <b>{c_data['kaufpreis']:.4f} {w_symbol}</b> auf <b>{neuer_durchschnitt:.4f} {w_symbol}</b>.</span></div>"""
                 st.markdown(dca_html, unsafe_allow_html=True)
 
             col_d1, col_d2 = st.columns([1, 2])
             with col_d1:
                 st.info(f"**signal: {status}**")
-                st.markdown(f"**order-rechner (Neu-Einstieg für {st.session_state.investition} {w_symbol}):**")
-                coins_gekauft = st.session_state.investition / preis
-                limit_stop_preis = preis * (1 - (st.session_state.stop_prozent / 100))
-                verlust = st.session_state.investition - (coins_gekauft * limit_stop_preis)
-                ziel_preis = preis * (1 + (st.session_state.ziel_prozent / 100))
-                gewinn = (coins_gekauft * ziel_preis) - st.session_state.investition
+                st.markdown(f"**order-rechner (Neu-Einstieg für {c_data['investition']} {w_symbol}):**")
+                coins_gekauft = c_data['investition'] / preis if preis > 0 else 0
+                limit_stop_preis = preis * (1 - (c_data['stop'] / 100))
+                verlust = c_data['investition'] - (coins_gekauft * limit_stop_preis)
+                ziel_preis = preis * (1 + (c_data['ziel'] / 100))
+                gewinn = (coins_gekauft * ziel_preis) - c_data['investition']
                 
                 st.markdown(f"- 🪙 **menge:** {coins_gekauft:,.2f} stück")
-                st.markdown(f"- 🛑 **stop (-{st.session_state.stop_prozent}%):** limit bei **{limit_stop_preis:.{dezimalstellen}f} {w_symbol}** (-{verlust:.2f} {w_symbol})")
-                st.markdown(f"- 🎯 **ziel (+{st.session_state.ziel_prozent}%):** limit bei **{ziel_preis:.{dezimalstellen}f} {w_symbol}** (+{gewinn:.2f} {w_symbol})")
+                st.markdown(f"- 🛑 **stop (-{c_data['stop']}%):** limit bei **{limit_stop_preis:.{dezimalstellen}f} {w_symbol}** (-{verlust:.2f} {w_symbol})")
+                st.markdown(f"- 🎯 **ziel (+{c_data['ziel']}%):** limit bei **{ziel_preis:.{dezimalstellen}f} {w_symbol}** (+{gewinn:.2f} {w_symbol})")
                 st.markdown("<br>", unsafe_allow_html=True)
                 
-                if st.session_state.stop_prozent <= volatilitaet_14:
-                    st.warning(f"⚠️ **Volatilitäts-Warnung:** {anzeige_name_sauber.split(' (')[0]} schwankt aktuell im Schnitt um **{volatilitaet_14:.1f}%**. Dein Stop ({st.session_state.stop_prozent}%) ist zu eng.")
+                if c_data['stop'] <= volatilitaet_14:
+                    st.warning(f"⚠️ **Volatilitäts-Warnung:** {anzeige_name_sauber.split(' (')[0]} schwankt aktuell im Schnitt um **{volatilitaet_14:.1f}%**. Dein Stop ({c_data['stop']}%) ist zu eng.")
                 else:
-                    st.success(f"🛡️ **Risiko-Check:** Dein Stop ({st.session_state.stop_prozent}%) liegt sicher außerhalb der normalen Schwankung ({volatilitaet_14:.1f}%).")
+                    st.success(f"🛡️ **Risiko-Check:** Dein Stop ({c_data['stop']}%) liegt sicher außerhalb der normalen Schwankung ({volatilitaet_14:.1f}%).")
 
             with col_d2:
                 fig = go.Figure()
@@ -344,7 +378,6 @@ def live_radar_cockpit():
                 
                 fig.update_layout(margin=dict(l=0, r=0, t=10, b=0), plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)', xaxis=dict(range=[df_live['timestamp'].iloc[-100], df_live['timestamp'].iloc[-1] + pd.Timedelta(hours=48)], showgrid=False), yaxis=dict(showgrid=True, gridcolor='#333333'), showlegend=False, height=200, hovermode="x unified")
                 st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False}, key=f"chart_{basis_coin}")
-                st.caption("🥶 **Blauer Diamant:** Crash-Kauf | 🟢 **Grünes Dreieck:** Trend-Dip | ❌ **Rotes X:** Verkaufs-Signal / Trendbruch")
             
             st.markdown("</div>", unsafe_allow_html=True)
         st.markdown("---")
