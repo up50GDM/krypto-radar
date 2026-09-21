@@ -5,6 +5,8 @@ import plotly.graph_objects as go
 from datetime import datetime
 from zoneinfo import ZoneInfo
 import warnings
+import json
+import os
 warnings.filterwarnings('ignore')
 
 # ==========================================
@@ -13,34 +15,42 @@ warnings.filterwarnings('ignore')
 st.set_page_config(page_title="steuerzentrale radar", layout="wide")
 
 # ==========================================
-# 💾 DER TRESOR (Währungsspezifisches Langzeitgedächtnis)
+# 💾 FESTPLATTEN-SPEICHER (Dauerhaftes Gedächtnis)
 # ==========================================
-if 'fiat_wahl' not in st.session_state: st.session_state.fiat_wahl = "EUR"
-if 'tz_wahl' not in st.session_state: st.session_state.tz_wahl = "deutschland (berlin / mez)"
-if 'meine_basis_coins' not in st.session_state: st.session_state.meine_basis_coins = ["SOL", "PEPE", "SUI", "FET", "ADA"]
+SPEICHER_DATEI = "tresor_speicher.json"
+DEFAULT_COINS = ["XXBT", "XETH", "XXRP", "SOL", "ADA", "PEPE", "SUI", "FET"]
 
-# Der Vault isoliert die Daten für JEDEN Coin strikt voneinander.
-if 'vault' not in st.session_state:
-    st.session_state.vault = {}
+def lade_daten():
+    if os.path.exists(SPEICHER_DATEI):
+        try:
+            with open(SPEICHER_DATEI, 'r') as f: return json.load(f)
+        except: pass
+    return {"vault": {}, "watchlist": DEFAULT_COINS}
+
+def speichere_daten(vault_data, watchlist_data):
+    with open(SPEICHER_DATEI, 'w') as f:
+        json.dump({"vault": vault_data, "watchlist": watchlist_data}, f)
+
+# Initiales Laden der Festplatten-Daten beim App-Start
+if 'app_loaded' not in st.session_state:
+    datenbank = lade_daten()
+    st.session_state.vault = datenbank.get("vault", {})
+    st.session_state.meine_basis_coins = datenbank.get("watchlist", DEFAULT_COINS)
+    st.session_state.fiat_wahl = "EUR"
+    st.session_state.tz_wahl = "deutschland (berlin / mez)"
+    st.session_state.app_loaded = True
 
 # ==========================================
 # DAS REINE LEXIKON 
 # ==========================================
 ECHTE_NAMEN = {
-    "XBT": "Bitcoin", "XXBT": "Bitcoin", 
-    "ETH": "Ethereum", "XETH": "Ethereum",
-    "XRP": "Ripple", "XXRP": "Ripple",
-    "SOL": "Solana", "ADA": "Cardano", 
-    "DOGE": "Dogecoin", "XDG": "Dogecoin",
-    "DOT": "Polkadot", "LINK": "Chainlink",
-    "BCH": "Bitcoin Cash", "LTC": "Litecoin", "XLTC": "Litecoin",
-    "PEPE": "Pepe", "SUI": "Sui", "FET": "Fetch.ai", 
-    "XMR": "Monero", "XXMR": "Monero", "ARB": "Arbitrum"
+    "XBT": "Bitcoin", "XXBT": "Bitcoin", "ETH": "Ethereum", "XETH": "Ethereum",
+    "XRP": "Ripple", "XXRP": "Ripple", "SOL": "Solana", "ADA": "Cardano", 
+    "DOGE": "Dogecoin", "XDG": "Dogecoin", "DOT": "Polkadot", "LINK": "Chainlink",
+    "BCH": "Bitcoin Cash", "LTC": "Litecoin", "XLTC": "Litecoin", "PEPE": "Pepe", 
+    "SUI": "Sui", "FET": "Fetch.ai", "XMR": "Monero", "XXMR": "Monero", "ARB": "Arbitrum"
 }
 
-# ==========================================
-# DYNAMISCHES KRAKEN-UNIVERSUM 
-# ==========================================
 @st.cache_data(ttl=3600)
 def fetch_kraken_assets():
     try:
@@ -56,7 +66,6 @@ def fetch_kraken_assets():
         return {"XXRP": "XXRP ➔ Ripple", "XXBT": "XXBT ➔ Bitcoin"}
 
 ALLE_COINS_DICT = fetch_kraken_assets()
-st.session_state.meine_basis_coins = list(dict.fromkeys(st.session_state.meine_basis_coins))
 
 def get_clean_name(api_key):
     raw_name = ALLE_COINS_DICT.get(api_key, api_key)
@@ -68,9 +77,6 @@ def get_clean_name(api_key):
         return f"{name} ({kurzel})"
     return api_key
 
-# ==========================================
-# TICKER (Live Rauschfilter)
-# ==========================================
 @st.cache_data(ttl=300)
 def fetch_global_ticker(fiat):
     try:
@@ -80,51 +86,56 @@ def fetch_global_ticker(fiat):
         valid_pairs = []
         for pair_name, data in res['result'].items():
             if pair_name.endswith(fiat) or pair_name.endswith(f"Z{fiat}"):
-                c = float(data['c'][0]) 
-                o = float(data['o'])    
-                v = float(data['v'][1]) 
+                c, o, v = float(data['c'][0]), float(data['o']), float(data['v'][1])
                 if (c * v) >= 1000000 and o > 0:
                     pct = ((c - o) / o) * 100
                     base_asset = pair_name.replace(fiat, "").replace(f"Z{fiat}", "")
                     valid_pairs.append({'name': ECHTE_NAMEN.get(base_asset, base_asset.replace('XX', 'X')), 'pct': pct})
         
         valid_pairs.sort(key=lambda x: x['pct'], reverse=True)
-        top_10 = valid_pairs[:10]
-        flop_10 = valid_pairs[-10:]
-        flop_10.sort(key=lambda x: x['pct']) 
+        top_10, flop_10 = valid_pairs[:10], sorted(valid_pairs[-10:], key=lambda x: x['pct']) 
         
-        ticker_items = ["🔥 TOP 10 GEWINNER:"]
-        for item in top_10: ticker_items.append(f"🟢 {item['name']}: +{item['pct']:.2f}%")
-        ticker_items.append("  |  🩸 TOP 10 VERLIERER:")
-        for item in flop_10: ticker_items.append(f"🔴 {item['name']}: {item['pct']:.2f}%")
-            
+        ticker_items = ["🔥 TOP 10 GEWINNER:"] + [f"🟢 {item['name']}: +{item['pct']:.2f}%" for item in top_10] + ["  |  🩸 TOP 10 VERLIERER:"] + [f"🔴 {item['name']}: {item['pct']:.2f}%" for item in flop_10]
         return " &nbsp;&nbsp;&nbsp;&nbsp; ".join(ticker_items)
     except: return "Ticker Offline"
 
 # ==========================================
 # 🎛️ EINSTELLUNGEN & SEITENLEISTE
 # ==========================================
+with st.sidebar.expander("📚 system-handbuch & legende", expanded=False):
+    st.markdown("""
+    **Signal-Farben (Regime):**
+    *   ⚪ **Neutral:** Abwarten.
+    *   🥶 **Blauer Diamant (Crash-Zone):** RSI < 30. Absolute Panik am Markt.
+    *   🟢 **Grünes Dreieck (Trend-Dip):** RSI < 35 & Kurs über der roten SMA-Trendlinie. 
+    *   ❌ **Rotes X (Verkauf):** RSI > 75 (Überhitzt) oder Kurs fällt unter die Trendlinie.
+    
+    **Die DCA-Regel (Nachkaufen):**
+    Nutze den Nachkauf-Simulator nur zur Berechnung des Break-Even. Kaufe niemals stur in einen Abwärtstrend, sondern warte auf ein System-Go.
+    """)
+
+st.sidebar.markdown("---")
 st.sidebar.header("⚙️ system-einstellungen")
 
-if st.sidebar.button("🔄 alles auf werkseinstellungen"):
+if st.sidebar.button("🔄 alles auf werkseinstellungen (Löscht Tresor!)"):
     st.session_state.clear()
+    if os.path.exists(SPEICHER_DATEI): os.remove(SPEICHER_DATEI)
     st.rerun()
 
 st.sidebar.markdown("---")
 
 zeitzonen_optionen = {
     "deutschland (berlin / mez)": "Europe/Berlin", "england (london / gmt)": "Europe/London",
-    "schweiz (zürich / cet)": "Europe/Zurich", "usa (new york / est)": "America/New_York",
-    "japan (tokyo / jst)": "Asia/Tokyo"
+    "schweiz (zürich / cet)": "Europe/Zurich", "usa (new york / est)": "America/New_York", "japan (tokyo / jst)": "Asia/Tokyo"
 }
 tz_keys = list(zeitzonen_optionen.keys())
-gewaehlte_tz_label = st.sidebar.selectbox("🌍 lokale zeitzone:", tz_keys, index=tz_keys.index(st.session_state.tz_wahl) if st.session_state.tz_wahl in tz_keys else 0)
+gewaehlte_tz_label = st.sidebar.selectbox("🌍 lokale zeitzone:", tz_keys, index=tz_keys.index(st.session_state.tz_wahl))
 st.session_state.tz_wahl = gewaehlte_tz_label
 aktuelle_zeitzone = ZoneInfo(zeitzonen_optionen[gewaehlte_tz_label])
 
 FIAT_SYMBOLE = {"EUR": "€", "USD": "$", "GBP": "£", "CHF": "chf", "CAD": "ca$", "AUD": "au$", "JPY": "¥"}
 fiat_keys = list(FIAT_SYMBOLE.keys())
-basis_waehrung = st.sidebar.selectbox("💵 fiat-währung:", fiat_keys, index=fiat_keys.index(st.session_state.fiat_wahl) if st.session_state.fiat_wahl in fiat_keys else 0)
+basis_waehrung = st.sidebar.selectbox("💵 fiat-währung:", fiat_keys, index=fiat_keys.index(st.session_state.fiat_wahl))
 st.session_state.fiat_wahl = basis_waehrung
 w_symbol = FIAT_SYMBOLE.get(basis_waehrung, basis_waehrung)
 
@@ -137,12 +148,16 @@ auswahl = st.sidebar.multiselect(
     default=[c for c in st.session_state.meine_basis_coins if c in ALLE_COINS_DICT],
     format_func=lambda x: ALLE_COINS_DICT.get(x, x)
 )
-st.session_state.meine_basis_coins = auswahl
+
+if auswahl != st.session_state.meine_basis_coins:
+    st.session_state.meine_basis_coins = list(dict.fromkeys(auswahl))
+    speichere_daten(st.session_state.vault, st.session_state.meine_basis_coins)
+    st.rerun()
 
 st.sidebar.markdown("---")
 
 # ==========================================
-# 🗄️ DER ISOLIERTE EINGABE-TRESOR (Formular)
+# 🗄️ DER ISOLIERTE EINGABE-TRESOR (Speichert lokal)
 # ==========================================
 st.sidebar.subheader("💼 tresor & bestände")
 
@@ -153,12 +168,10 @@ tresor_coin = st.sidebar.selectbox(
 ) if len(st.session_state.meine_basis_coins) > 0 else None
 
 if tresor_coin:
-    # Lade die Werte aus dem Tresor, falls vorhanden. Ansonsten zeige Null.
     gespeichert = st.session_state.vault.get(tresor_coin, {
         "menge": 0.0, "kaufpreis": 0.0, "investition": 300.0, "ziel": 10.0, "stop": 3.0, "timestamp": "Noch nicht gespeichert"
     })
 
-    # Das Formular friert die Eingaben ein, bis auf den Button gedrückt wird!
     with st.sidebar.form(key=f"form_{tresor_coin}"):
         st.caption(f"Letzte Speicherung: {gespeichert['timestamp']}")
         menge = st.number_input("Bestand (Stück)", min_value=0.0, value=float(gespeichert["menge"]), step=10.0)
@@ -168,33 +181,17 @@ if tresor_coin:
         ziel = st.number_input("Ziel-Take-Profit (%)", min_value=1.0, value=float(gespeichert["ziel"]), step=1.0)
         stop = st.number_input("Individueller Stop-Loss (%)", min_value=0.1, value=float(gespeichert["stop"]), step=0.5)
         
-        # Der Submit-Button schreibt die Daten sicher in das Dictionary
-        submit = st.form_submit_button(f"💾 Werte für {get_clean_name(tresor_coin)} versiegeln")
+        submit = st.form_submit_button(f"💾 Werte für {get_clean_name(tresor_coin)} dauerhaft versiegeln")
         
         if submit:
             st.session_state.vault[tresor_coin] = {
                 "menge": menge, "kaufpreis": kaufpreis, "investition": investition, 
-                "ziel": ziel, "stop": stop, 
-                "timestamp": datetime.now(aktuelle_zeitzone).strftime('%H:%M:%S')
+                "ziel": ziel, "stop": stop, "timestamp": datetime.now(aktuelle_zeitzone).strftime('%H:%M:%S')
             }
+            speichere_daten(st.session_state.vault, st.session_state.meine_basis_coins)
             st.rerun()
 
 st.sidebar.markdown("---")
-
-# ==========================================
-# 📚 SYSTEM-HANDBUCH (Ausgelagert in die Sidebar)
-# ==========================================
-with st.sidebar.expander("📚 system-handbuch & legende"):
-    st.markdown("""
-    **Signal-Farben (Regime):**
-    *   ⚪ **Neutral:** Abwarten.
-    *   🥶 **Blauer Diamant (Crash-Zone):** RSI < 30. Absolute Panik am Markt.
-    *   🟢 **Grünes Dreieck (Trend-Dip):** RSI < 35, aber Kurs über der roten SMA-Trendlinie. 
-    *   ❌ **Rotes X (Verkauf):** RSI > 75 (Überhitzt) oder Kurs fällt unter die Trendlinie.
-    
-    **Die DCA-Regel (Nachkaufen):**
-    Nutze den Nachkauf-Simulator nur zur Berechnung des Break-Even. Kaufe niemals stur in einen Abwärtstrend, sondern warte auf ein System-Go (🟢 oder 🥶).
-    """)
 
 # ==========================================
 # HAUPTBEREICH
@@ -204,12 +201,12 @@ st.title("🚀 krypto-steuerzentrale | live-radar")
 ticker_text = fetch_global_ticker(st.session_state.fiat_wahl)
 st.markdown(f"<marquee style='font-size: 15px; font-weight: bold; color: #d4d4d4; background-color: #1e1e1e; padding: 6px; border-radius: 5px; border: 1px solid #333;'>{ticker_text}</marquee>", unsafe_allow_html=True)
 
-# Weltuhren bleiben oben, aber clean ohne den Erklärtext
-col_u1, col_u2, col_u3, col_u4 = st.columns(4)
-col_u1.metric("🗽 New York (Wall Street)", f"{datetime.now(ZoneInfo('America/New_York')).strftime('%H:%M')} Uhr")
-col_u2.metric("🎡 London (LSE)", f"{datetime.now(ZoneInfo('Europe/London')).strftime('%H:%M')} Uhr")
-col_u3.metric("🥨 Berlin/Zürich", f"{datetime.now(ZoneInfo('Europe/Berlin')).strftime('%H:%M')} Uhr")
-col_u4.metric("🗼 Tokyo (TSE)", f"{datetime.now(ZoneInfo('Asia/Tokyo')).strftime('%H:%M')} Uhr")
+with st.expander("🌍 weltuhren & börsen-öffnungszeiten (Wann kommt das große Geld?)"):
+    col_u1, col_u2, col_u3, col_u4 = st.columns(4)
+    col_u1.metric("🗽 New York (Wall Street)", f"{datetime.now(ZoneInfo('America/New_York')).strftime('%H:%M')} Uhr")
+    col_u2.metric("🎡 London (LSE)", f"{datetime.now(ZoneInfo('Europe/London')).strftime('%H:%M')} Uhr")
+    col_u3.metric("🥨 Berlin/Zürich", f"{datetime.now(ZoneInfo('Europe/Berlin')).strftime('%H:%M')} Uhr")
+    col_u4.metric("🗼 Tokyo (TSE)", f"{datetime.now(ZoneInfo('Asia/Tokyo')).strftime('%H:%M')} Uhr")
 
 col_m1, col_m2 = st.columns([2, 5])
 with col_m1:
@@ -230,7 +227,6 @@ def live_radar_cockpit():
     st.markdown("---")
 
     for i, basis_coin in enumerate(st.session_state.meine_basis_coins):
-        # Lade die coin-spezifischen Daten aus dem Tresor. Falls leer, Standardwerte nehmen.
         c_data = st.session_state.vault.get(basis_coin, {
             "menge": 0.0, "kaufpreis": 0.0, "investition": 300.0, "ziel": 10.0, "stop": 3.0
         })
@@ -304,14 +300,17 @@ def live_radar_cockpit():
                 if i > 0 and st.button("🔝", key=f"top_{basis_coin}", help="Sofort auf Platz 1 setzen"):
                     st.session_state.meine_basis_coins.remove(basis_coin)
                     st.session_state.meine_basis_coins.insert(0, basis_coin)
+                    speichere_daten(st.session_state.vault, st.session_state.meine_basis_coins)
                     st.rerun()
             with nav_col2:
                 if i > 0 and st.button("⬆️", key=f"up_{basis_coin}"):
                     st.session_state.meine_basis_coins[i], st.session_state.meine_basis_coins[i-1] = st.session_state.meine_basis_coins[i-1], st.session_state.meine_basis_coins[i]
+                    speichere_daten(st.session_state.vault, st.session_state.meine_basis_coins)
                     st.rerun()
             with nav_col3:
                 if i < len(st.session_state.meine_basis_coins) - 1 and st.button("⬇️", key=f"down_{basis_coin}"):
                     st.session_state.meine_basis_coins[i], st.session_state.meine_basis_coins[i+1] = st.session_state.meine_basis_coins[i+1], st.session_state.meine_basis_coins[i]
+                    speichere_daten(st.session_state.vault, st.session_state.meine_basis_coins)
                     st.rerun()
 
         if f"chk_{basis_coin}" not in st.session_state: st.session_state[f"chk_{basis_coin}"] = False
@@ -327,12 +326,10 @@ def live_radar_cockpit():
                 pnl = aktueller_wert - investiert
                 pnl_pct = (pnl / investiert) * 100 if investiert > 0 else 0
                 
-                # Math-Sicherheit: Verhindern von Division durch Null
                 zusatz_menge = c_data['investition'] / preis if preis > 0 else 0
                 neue_gesamtmenge = c_data['menge'] + zusatz_menge
                 neues_investment = investiert + c_data['investition']
                 neuer_durchschnitt = neues_investment / neue_gesamtmenge if neue_gesamtmenge > 0 else 0
-                
                 trailing_stop = preis * (1 - (c_data['stop'] / 100))
                 
                 col_p1, col_p2, col_p3 = st.columns(3)
