@@ -138,7 +138,7 @@ st.session_state.fiat_wahl = basis_waehrung
 w_symbol = FIAT_SYMBOLE.get(basis_waehrung, basis_waehrung)
 
 st.sidebar.markdown("---")
-st.sidebar.header("🎛️ deine watchlist")
+st.sidebar.header("🎛️ deine watchlist (Alle Coins!)")
 
 auswahl = st.sidebar.multiselect(
     "währungen suchen/hinzufügen:", 
@@ -178,7 +178,7 @@ st.title("🚀 krypto-steuerzentrale | live-radar")
 ticker_text = fetch_global_ticker(st.session_state.fiat_wahl)
 st.markdown(f"<marquee style='font-size: 15px; font-weight: bold; color: #d4d4d4; background-color: #1e1e1e; padding: 6px; border-radius: 5px; border: 1px solid #333;'>{ticker_text}</marquee>", unsafe_allow_html=True)
 
-with st.expander("🌍 weltuhren & börsen-öffnungszeiten"):
+with st.expander("🌍 weltuhren & börsen-öffnungszeiten (Wann kommt das große Geld?)"):
     col_u1, col_u2, col_u3, col_u4 = st.columns(4)
     col_u1.metric("🗽 New York (Wall Street)", f"{datetime.now(ZoneInfo('America/New_York')).strftime('%H:%M')} Uhr")
     col_u2.metric("🎡 London (LSE)", f"{datetime.now(ZoneInfo('Europe/London')).strftime('%H:%M')} Uhr")
@@ -200,7 +200,7 @@ with col_m2:
 # ==========================================
 @st.fragment(run_every=300)
 def live_radar_cockpit():
-    st.write(f"🔄 **autopilot aktiv:** (zuletzt aktualisiert: {datetime.now(aktuelle_zeitzone).strftime('%H:%M:%S')})")
+    st.write(f"🔄 **autopilot aktiv:** (radar zuletzt lautlos aktualisiert: {datetime.now(aktuelle_zeitzone).strftime('%H:%M:%S')})")
     st.markdown("---")
 
     for i, basis_coin in enumerate(st.session_state.meine_basis_coins):
