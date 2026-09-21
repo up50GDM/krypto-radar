@@ -7,6 +7,7 @@ from zoneinfo import ZoneInfo
 import warnings
 import json
 import os
+import locale
 warnings.filterwarnings('ignore')
 
 # ==========================================
@@ -38,7 +39,22 @@ if 'app_loaded' not in st.session_state:
     st.session_state.meine_basis_coins = datenbank.get("watchlist", DEFAULT_COINS)
     st.session_state.fiat_wahl = "EUR"
     st.session_state.tz_wahl = "deutschland (berlin / mez)"
+    st.session_state.zahlen_format = "International (75,000.34)"
     st.session_state.app_loaded = True
+
+# ==========================================
+# FORMATIERUNGS-FUNKTION (Deutsch vs International)
+# ==========================================
+def formatiere_zahl(zahl, dezimalstellen=2):
+    """Formatiert Zahlen basierend auf der Nutzerauswahl in der Seitenleiste"""
+    try:
+        if st.session_state.zahlen_format == "Deutsch (75.000,34)":
+            format_str = f"{{:,.{dezimalstellen}f}}"
+            return format_str.format(zahl).replace(',', 'X').replace('.', ',').replace('X', '.')
+        else:
+            return f"{zahl:,.{dezimalstellen}f}"
+    except:
+        return f"{zahl:.{dezimalstellen}f}"
 
 # ==========================================
 # DAS REINE LEXIKON 
@@ -66,6 +82,7 @@ def fetch_kraken_assets():
         return {"XXRP": "XXRP ➔ Ripple", "XXBT": "XXBT ➔ Bitcoin"}
 
 ALLE_COINS_DICT = fetch_kraken_assets()
+st.session_state.meine_basis_coins = list(dict.fromkeys(st.session_state.meine_basis_coins))
 
 def get_clean_name(api_key):
     raw_name = ALLE_COINS_DICT.get(api_key, api_key)
@@ -124,6 +141,11 @@ if st.sidebar.button("🔄 alles auf werkseinstellungen (Löscht Tresor!)"):
 
 st.sidebar.markdown("---")
 
+# Format-Umschalter
+format_optionen = ["International (75,000.34)", "Deutsch (75.000,34)"]
+gewaehltes_format = st.sidebar.selectbox("🔢 zahlenformat:", format_optionen, index=format_optionen.index(st.session_state.zahlen_format))
+st.session_state.zahlen_format = gewaehltes_format
+
 zeitzonen_optionen = {
     "deutschland (berlin / mez)": "Europe/Berlin", "england (london / gmt)": "Europe/London",
     "schweiz (zürich / cet)": "Europe/Zurich", "usa (new york / est)": "America/New_York", "japan (tokyo / jst)": "Asia/Tokyo"
@@ -174,12 +196,13 @@ if tresor_coin:
 
     with st.sidebar.form(key=f"form_{tresor_coin}"):
         st.caption(f"Letzte Speicherung: {gespeichert['timestamp']}")
-        menge = st.number_input("Bestand (Stück)", min_value=0.0, value=float(gespeichert["menge"]), step=10.0)
-        kaufpreis = st.number_input(f"Kaufkurs ({w_symbol})", min_value=0.0, value=float(gespeichert["kaufpreis"]), step=0.1)
+        # format="%0.8f" erzwingt die hohe Genauigkeit in der Eingabe (bis 8 Stellen)
+        menge = st.number_input("Bestand (Stück)", min_value=0.0, value=float(gespeichert["menge"]), step=0.001, format="%0.8f")
+        kaufpreis = st.number_input(f"Kaufkurs ({w_symbol})", min_value=0.0, value=float(gespeichert["kaufpreis"]), step=0.1, format="%0.8f")
         st.markdown("---")
-        investition = st.number_input("Geplante Neu-Investition", min_value=10.0, value=float(gespeichert["investition"]), step=50.0)
-        ziel = st.number_input("Ziel-Take-Profit (%)", min_value=1.0, value=float(gespeichert["ziel"]), step=1.0)
-        stop = st.number_input("Individueller Stop-Loss (%)", min_value=0.1, value=float(gespeichert["stop"]), step=0.5)
+        investition = st.number_input("Geplante Neu-Investition", min_value=10.0, value=float(gespeichert["investition"]), step=50.0, format="%0.2f")
+        ziel = st.number_input("Ziel-Take-Profit (%)", min_value=1.0, value=float(gespeichert["ziel"]), step=1.0, format="%0.2f")
+        stop = st.number_input("Individueller Stop-Loss (%)", min_value=0.1, value=float(gespeichert["stop"]), step=0.5, format="%0.2f")
         
         submit = st.form_submit_button(f"💾 Werte für {get_clean_name(tresor_coin)} dauerhaft versiegeln")
         
@@ -201,12 +224,21 @@ st.title("🚀 krypto-steuerzentrale | live-radar")
 ticker_text = fetch_global_ticker(st.session_state.fiat_wahl)
 st.markdown(f"<marquee style='font-size: 15px; font-weight: bold; color: #d4d4d4; background-color: #1e1e1e; padding: 6px; border-radius: 5px; border: 1px solid #333;'>{ticker_text}</marquee>", unsafe_allow_html=True)
 
-with st.expander("🌍 weltuhren & börsen-öffnungszeiten (Wann kommt das große Geld?)"):
+with st.expander("🌍 weltuhren & börsen-öffnungszeiten", expanded=True):
     col_u1, col_u2, col_u3, col_u4 = st.columns(4)
     col_u1.metric("🗽 New York (Wall Street)", f"{datetime.now(ZoneInfo('America/New_York')).strftime('%H:%M')} Uhr")
+    col_u1.caption("Handelszeit: 15:30 - 22:00 MEZ")
+    
     col_u2.metric("🎡 London (LSE)", f"{datetime.now(ZoneInfo('Europe/London')).strftime('%H:%M')} Uhr")
+    col_u2.caption("Handelszeit: 09:00 - 17:30 MEZ")
+    
     col_u3.metric("🥨 Berlin/Zürich", f"{datetime.now(ZoneInfo('Europe/Berlin')).strftime('%H:%M')} Uhr")
+    col_u3.caption("Handelszeit: 09:00 - 17:30 MEZ")
+    
     col_u4.metric("🗼 Tokyo (TSE)", f"{datetime.now(ZoneInfo('Asia/Tokyo')).strftime('%H:%M')} Uhr")
+    col_u4.caption("Handelszeit: 02:00 - 08:00 MEZ")
+    
+    st.markdown("*Die Krypto-Märkte laufen 24/7, aber das größte institutionelle Volumen (Smart Money) drängt in den Markt, wenn die traditionellen Aktienbörsen öffnen.*")
 
 col_m1, col_m2 = st.columns([2, 5])
 with col_m1:
@@ -282,14 +314,14 @@ def live_radar_cockpit():
         else: 
             rsi_ampel, rand_farbe, dca_icon = "⚪", "#555555", "⚪"
         
-        dezimalstellen = 6 if preis < 1.0 else 4
+        dezimalstellen = 6 if preis < 1.0 else 2
 
         col_k1, col_k2, col_k3, col_k4 = st.columns([2.5, 2, 1.5, 3])
         
         with col_k1:
             st.markdown(f"### {anzeige_name_sauber}<br><span style='font-size:14px; color:#888888;'>ping: {ping_zeit}</span>", unsafe_allow_html=True)
         with col_k2:
-            st.metric(label=f"live-kurs ({st.session_state.fiat_wahl})", value=f"{preis:.{dezimalstellen}f} {w_symbol}")
+            st.metric(label=f"live-kurs ({st.session_state.fiat_wahl})", value=f"{formatiere_zahl(preis, dezimalstellen)} {w_symbol}")
         with col_k3:
             st.metric(label=f"rsi (puls)", value=f"{rsi:.1f} {rsi_ampel}")
         
@@ -320,7 +352,7 @@ def live_radar_cockpit():
             st.markdown(f"""<div style="border-left: 3px solid {rand_farbe}; padding-left: 15px; margin-bottom: 20px;">""", unsafe_allow_html=True)
             
             if c_data['menge'] > 0:
-                st.success(f"💼 **Dein Bestand im Tresor:** {c_data['menge']} Stück (Kaufkurs: {c_data['kaufpreis']} {w_symbol})")
+                st.success(f"💼 **Dein Bestand im Tresor:** {formatiere_zahl(c_data['menge'], 4)} Stück (Kaufkurs: {formatiere_zahl(c_data['kaufpreis'], dezimalstellen)} {w_symbol})")
                 aktueller_wert = c_data['menge'] * preis
                 investiert = c_data['menge'] * c_data['kaufpreis']
                 pnl = aktueller_wert - investiert
@@ -333,37 +365,37 @@ def live_radar_cockpit():
                 trailing_stop = preis * (1 - (c_data['stop'] / 100))
                 
                 col_p1, col_p2, col_p3 = st.columns(3)
-                col_p1.metric("Aktueller Wert", f"{aktueller_wert:.2f} {w_symbol}")
-                col_p2.metric("Gewinn / Verlust", f"{pnl:.2f} {w_symbol}", f"{pnl_pct:.2f}%")
-                col_p3.metric(f"🚨 Trailing-Stop (-{c_data['stop']}%)", f"{trailing_stop:.{dezimalstellen}f} {w_symbol}")
+                col_p1.metric("Aktueller Wert", f"{formatiere_zahl(aktueller_wert, 2)} {w_symbol}")
+                col_p2.metric("Gewinn / Verlust", f"{formatiere_zahl(pnl, 2)} {w_symbol}", f"{pnl_pct:.2f}%")
+                col_p3.metric(f"🚨 Trailing-Stop (-{c_data['stop']}%)", f"{formatiere_zahl(trailing_stop, dezimalstellen)} {w_symbol}")
                 
-                dca_html = f"""<div style="background-color: #1a1a1a; border: 2px solid {rand_farbe}; border-radius: 8px; padding: 15px; margin-bottom: 20px;"><span style="font-size: 15px; color: #e0e0e0; line-height: 1.5;">{dca_icon} <b>Nachkauf-Simulation (DCA):</b> Wenn du jetzt {c_data['investition']:.2f} {w_symbol} investierst, sinkt dein Durchschnitts-Kaufpreis von <b>{c_data['kaufpreis']:.4f} {w_symbol}</b> auf <b>{neuer_durchschnitt:.4f} {w_symbol}</b>.</span></div>"""
+                dca_html = f"""<div style="background-color: #1a1a1a; border: 2px solid {rand_farbe}; border-radius: 8px; padding: 15px; margin-bottom: 20px;"><span style="font-size: 15px; color: #e0e0e0; line-height: 1.5;">{dca_icon} <b>Nachkauf-Simulation (DCA):</b> Wenn du jetzt {formatiere_zahl(c_data['investition'], 2)} {w_symbol} investierst, sinkt dein Durchschnitts-Kaufpreis von <b>{formatiere_zahl(c_data['kaufpreis'], dezimalstellen)} {w_symbol}</b> auf <b>{formatiere_zahl(neuer_durchschnitt, dezimalstellen)} {w_symbol}</b>.</span></div>"""
                 st.markdown(dca_html, unsafe_allow_html=True)
 
             col_d1, col_d2 = st.columns([1, 2])
             with col_d1:
                 st.info(f"**signal: {status}**")
-                st.markdown(f"**order-rechner (Neu-Einstieg für {c_data['investition']} {w_symbol}):**")
+                st.markdown(f"**order-rechner (Neu-Einstieg für {formatiere_zahl(c_data['investition'], 2)} {w_symbol}):**")
                 coins_gekauft = c_data['investition'] / preis if preis > 0 else 0
                 limit_stop_preis = preis * (1 - (c_data['stop'] / 100))
                 verlust = c_data['investition'] - (coins_gekauft * limit_stop_preis)
                 ziel_preis = preis * (1 + (c_data['ziel'] / 100))
                 gewinn = (coins_gekauft * ziel_preis) - c_data['investition']
                 
-                st.markdown(f"- 🪙 **menge:** {coins_gekauft:,.2f} stück")
-                st.markdown(f"- 🛑 **stop (-{c_data['stop']}%):** limit bei **{limit_stop_preis:.{dezimalstellen}f} {w_symbol}** (-{verlust:.2f} {w_symbol})")
-                st.markdown(f"- 🎯 **ziel (+{c_data['ziel']}%):** limit bei **{ziel_preis:.{dezimalstellen}f} {w_symbol}** (+{gewinn:.2f} {w_symbol})")
+                st.markdown(f"- 🪙 **menge:** {formatiere_zahl(coins_gekauft, 4)} stück")
+                st.markdown(f"- 🛑 **stop (-{c_data['stop']}%):** limit bei **{formatiere_zahl(limit_stop_preis, dezimalstellen)} {w_symbol}** (-{formatiere_zahl(verlust, 2)} {w_symbol})")
+                st.markdown(f"- 🎯 **ziel (+{c_data['ziel']}%):** limit bei **{formatiere_zahl(ziel_preis, dezimalstellen)} {w_symbol}** (+{formatiere_zahl(gewinn, 2)} {w_symbol})")
                 st.markdown("<br>", unsafe_allow_html=True)
                 
                 if c_data['stop'] <= volatilitaet_14:
-                    st.warning(f"⚠️ **Volatilitäts-Warnung:** {anzeige_name_sauber.split(' (')[0]} schwankt aktuell im Schnitt um **{volatilitaet_14:.1f}%**. Dein Stop ({c_data['stop']}%) ist zu eng.")
+                    st.warning(f"⚠️ **Volatilitäts-Warnung:** {anzeige_name_sauber.split(' (')[0]} schwankt im Schnitt um **{volatilitaet_14:.1f}%**. Dein Stop ({c_data['stop']}%) ist zu eng.")
                 else:
                     st.success(f"🛡️ **Risiko-Check:** Dein Stop ({c_data['stop']}%) liegt sicher außerhalb der normalen Schwankung ({volatilitaet_14:.1f}%).")
 
             with col_d2:
                 fig = go.Figure()
-                fig.add_trace(go.Scatter(x=df_live['timestamp'], y=df_live['close'], mode='lines', line=dict(color='#4da6ff', width=2), name='kurs', hovertemplate=f'<b>kurs:</b> %{{y:.4f}} {w_symbol}<br><b>zeit:</b> %{{x|%d.%m. - %H:%M}}<extra></extra>'))
-                fig.add_trace(go.Scatter(x=df_live['timestamp'], y=df_live['sma_200'], mode='lines', line=dict(color='#ff4d4d', width=2, dash='dash'), name='sma 200', hovertemplate=f'<b>trend-grenze:</b> %{{y:.4f}} {w_symbol}<br><b>zeit:</b> %{{x|%d.%m. - %H:%M}}<extra></extra>'))
+                fig.add_trace(go.Scatter(x=df_live['timestamp'], y=df_live['close'], mode='lines', line=dict(color='#4da6ff', width=2), name='kurs', hovertemplate=f'<b>kurs:</b> %{{y:.{dezimalstellen}f}} {w_symbol}<br><b>zeit:</b> %{{x|%d.%m. - %H:%M}}<extra></extra>'))
+                fig.add_trace(go.Scatter(x=df_live['timestamp'], y=df_live['sma_200'], mode='lines', line=dict(color='#ff4d4d', width=2, dash='dash'), name='sma 200', hovertemplate=f'<b>trend-grenze:</b> %{{y:.{dezimalstellen}f}} {w_symbol}<br><b>zeit:</b> %{{x|%d.%m. - %H:%M}}<extra></extra>'))
                 
                 crash_signale = df_live[df_live['rsi'] < 30]
                 trend_signale = df_live[(df_live['rsi'] < 35) & (df_live['close'] > df_live['sma_200']) & (df_live['rsi'] >= 30)]
