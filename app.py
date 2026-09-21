@@ -60,10 +60,7 @@ def fetch_kraken_assets():
 ALLE_COINS_DICT = fetch_kraken_assets()
 
 if 'meine_basis_coins' not in st.session_state: 
-    # Saubere Startliste
     st.session_state.meine_basis_coins = ["SOL", "PEPE", "SUI", "FET", "ADA"]
-
-# Sicherheitsschritt: Duplikate entfernen (falls der Speicher korrumpiert war)
 st.session_state.meine_basis_coins = list(dict.fromkeys(st.session_state.meine_basis_coins))
 
 def get_clean_name(api_key):
@@ -244,17 +241,19 @@ def live_radar_cockpit():
         volatilitaet_14 = df_live['amplitude'].tail(14).mean()
 
         status = "⚪ neutral (abwarten / halten)"
-        if preis > sma and (45 <= rsi <= 65) and vol >= 2.0: status = "🟢 KAUF-ZONE (einstieg prüfen)"
+        if rsi < 30: status = "🥶 CRASH-ZONE (panik-kauf prüfen)"
+        elif rsi < 35 and preis > sma: status = "🟢 KAUF-ZONE (trend-dip prüfen)"
         elif rsi >= 75: status = "🔴 VERKAUF (markt überhitzt)"
         elif preis < sma: status = "🔴 VERKAUF (trendbruch unter rote linie)"
 
-        if status.startswith("🟢"): 
+        if status.startswith("🥶"): 
+            rsi_ampel, rand_farbe, dca_icon = "🥶", "#0088ff", "🥶"
+        elif status.startswith("🟢"): 
             rsi_ampel, rand_farbe, dca_icon = "🟢", "#00cc66", "🟢"
         elif rsi >= 75 or status.startswith("🔴"): 
             rsi_ampel, rand_farbe, dca_icon = "🔴", "#ff4d4d", "🔴"
         else: 
-            rsi_ampel = "🧊" if rsi <= 45 else "⚪"
-            rand_farbe, dca_icon = "#555555", "⚪"
+            rsi_ampel, rand_farbe, dca_icon = "⚪", "#555555", "⚪"
         
         dezimalstellen = 6 if preis < 1.0 else 4
 
@@ -267,11 +266,9 @@ def live_radar_cockpit():
         with col_k3:
             st.metric(label=f"rsi (puls)", value=f"{rsi:.1f} {rsi_ampel}")
         
-        # NAVIGATION: Stabil und fehlerfrei ohne Dropdown
         with col_k4:
             st.markdown("<br>", unsafe_allow_html=True)
             nav_col1, nav_col2, nav_col3 = st.columns([1, 1, 1])
-            
             with nav_col1:
                 if i > 0 and st.button("🔝", key=f"top_{basis_coin}", help="Sofort auf Platz 1 setzen"):
                     st.session_state.meine_basis_coins.remove(basis_coin)
@@ -337,15 +334,17 @@ def live_radar_cockpit():
                 fig.add_trace(go.Scatter(x=df_live['timestamp'], y=df_live['close'], mode='lines', line=dict(color='#4da6ff', width=2), name='kurs', hovertemplate=f'<b>kurs:</b> %{{y:.4f}} {w_symbol}<br><b>zeit:</b> %{{x|%d.%m. - %H:%M}}<extra></extra>'))
                 fig.add_trace(go.Scatter(x=df_live['timestamp'], y=df_live['sma_200'], mode='lines', line=dict(color='#ff4d4d', width=2, dash='dash'), name='sma 200', hovertemplate=f'<b>trend-grenze:</b> %{{y:.4f}} {w_symbol}<br><b>zeit:</b> %{{x|%d.%m. - %H:%M}}<extra></extra>'))
                 
-                kauf_signale = df_live[(df_live['close'] > df_live['sma_200']) & (df_live['rsi'] >= 45) & (df_live['rsi'] <= 65) & (df_live['volume_ratio'] >= 2.0)]
+                crash_signale = df_live[df_live['rsi'] < 30]
+                trend_signale = df_live[(df_live['rsi'] < 35) & (df_live['close'] > df_live['sma_200']) & (df_live['rsi'] >= 30)]
                 verkauf_signale = df_live[(df_live['rsi'] >= 75) | (df_live['close'] < df_live['sma_200'])]
 
-                fig.add_trace(go.Scatter(x=kauf_signale['timestamp'], y=kauf_signale['close'], mode='markers', marker=dict(color='green', size=10, symbol='triangle-up'), name='Kauf-Signal'))
+                fig.add_trace(go.Scatter(x=crash_signale['timestamp'], y=crash_signale['close'], mode='markers', marker=dict(color='#0088ff', size=10, symbol='diamond'), name='Crash-Signal'))
+                fig.add_trace(go.Scatter(x=trend_signale['timestamp'], y=trend_signale['close'], mode='markers', marker=dict(color='#00cc66', size=10, symbol='triangle-up'), name='Trend-Dip'))
                 fig.add_trace(go.Scatter(x=verkauf_signale['timestamp'], y=verkauf_signale['close'], mode='markers', marker=dict(color='red', size=8, symbol='x'), name='Verkauf-Signal'))
                 
                 fig.update_layout(margin=dict(l=0, r=0, t=10, b=0), plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)', xaxis=dict(range=[df_live['timestamp'].iloc[-100], df_live['timestamp'].iloc[-1] + pd.Timedelta(hours=48)], showgrid=False), yaxis=dict(showgrid=True, gridcolor='#333333'), showlegend=False, height=200, hovermode="x unified")
                 st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False}, key=f"chart_{basis_coin}")
-                st.caption("🟢 **Grünes Dreieck:** Kauf-Signal | ❌ **Rotes X:** Verkaufs-Signal / Trendbruch")
+                st.caption("🥶 **Blauer Diamant:** Crash-Kauf | 🟢 **Grünes Dreieck:** Trend-Dip | ❌ **Rotes X:** Verkaufs-Signal / Trendbruch")
             
             st.markdown("</div>", unsafe_allow_html=True)
         st.markdown("---")
